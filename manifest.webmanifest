@@ -1,0 +1,14 @@
+{
+  "name": "HPMS — Progress Tracking System",
+  "short_name": "HPMS",
+  "description": "Construction Progress Monitoring System — works offline, syncs when online",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0e14",
+  "theme_color": "#f59e0b",
+  "icons": [
+    { "src": "app/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
