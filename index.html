@@ -206,6 +206,34 @@ tbody tr:hover{background:var(--bg-2)}
 .cost-fill.baseline{background:var(--accent)}
 .cost-fill.vo{background:var(--warn)}
 .cost-fill.total{background:linear-gradient(90deg,var(--accent),var(--warn))}
+.cost-fill.billed{background:var(--good)}
+.cost-fill.remaining{background:var(--bad)}
+.cost-item.billed{background:var(--good-soft);border-color:var(--good)}
+.cost-item.billed .cost-value{color:var(--good)}
+.cost-item.remaining{background:var(--bad-soft);border-color:var(--bad)}
+.cost-item.remaining .cost-value{color:var(--bad)}
+.cost-meta{font-size:11px;color:var(--text-3);margin-top:2px;font-family:'JetBrains Mono'}
+
+/* Billing page */
+.bill-struct{background:var(--bg-1);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.bill-struct-head{padding:12px 16px;background:var(--bg-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.bill-struct-title{font-family:'Bricolage Grotesque';font-weight:700;font-size:15px;color:var(--text-1);display:flex;align-items:center;gap:8px}
+.bill-struct-total{font-family:'JetBrains Mono';font-weight:700;font-size:15px;color:var(--brand)}
+.bill-item-row{display:grid;grid-template-columns:1fr 110px 110px 120px 140px 160px;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);align-items:center;font-size:13px}
+.bill-item-row:last-child{border-bottom:0}
+.bill-item-row.head{background:var(--bg-2);color:var(--text-3);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.bill-item-row .num{text-align:right;font-family:'JetBrains Mono';color:var(--text-1)}
+.bill-item-row .amt{text-align:right;font-family:'JetBrains Mono';font-weight:700;color:var(--good)}
+.bill-item-row .actions{display:flex;gap:6px;justify-content:flex-end}
+.bill-activity{font-weight:600;color:var(--text-1)}
+.bill-activity .sub{display:block;font-size:11px;color:var(--text-3);font-weight:500;margin-top:2px}
+.btn-mini{padding:6px 10px;border-radius:7px;border:1px solid var(--line);background:var(--bg-2);color:var(--text-1);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit;transition:all .15s}
+.btn-mini:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+@media(max-width:880px){
+  .bill-item-row{grid-template-columns:1fr 1fr;gap:6px;padding:10px}
+  .bill-item-row.head{display:none}
+  .bill-item-row > div::before{content:attr(data-label);display:block;font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:2px}
+}
 .kpi{
   background:var(--bg-1);border:1px solid var(--line);
   border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;
@@ -1238,6 +1266,7 @@ body.auth-locked{overflow:hidden;}
         <button class="tab-btn" data-page="events"><i class="bi bi-exclamation-triangle-fill"></i> Events</button>
         <button class="tab-btn" data-page="ipc"><i class="bi bi-receipt"></i> IPC &amp; Payments</button>
         <button class="tab-btn" data-page="dashboard"><i class="bi bi-bar-chart-fill"></i> Dashboard</button>
+        <button class="tab-btn" data-page="billing"><i class="bi bi-receipt"></i> Billing</button>
         <button class="tab-btn" data-page="reports"><i class="bi bi-file-earmark-text"></i> Reports</button>
       </nav>
       <button class="tabs-scroll-btn" id="tabsScrollNext" onclick="scrollTabs(120)" title="Scroll right"><i class="bi bi-chevron-right"></i></button>
@@ -1760,31 +1789,13 @@ body.auth-locked{overflow:hidden;}
 
       <div class="kpi-grid" id="kpiHost"></div>
 
-      <!-- Cost Breakdown -->
+      <!-- Cost Breakdown (linked to daily logs) -->
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
           <h3><i class="bi bi-cash" style="margin-right:6px;color:var(--brand)"></i> Contract Cost Breakdown</h3>
-          <span style="font-size:11px;color:var(--text-3)">baseline, variations, and revisions</span>
+          <span style="font-size:11px;color:var(--text-3)">baseline · variations · billed from daily logs</span>
         </div>
-        <div class="card-body">
-          <div class="cost-breakdown">
-            <div class="cost-item">
-              <div class="cost-label">Baseline Contract Value</div>
-              <div class="cost-value">${fmt(state.project.baselineCost || 0)} ${ccy()}</div>
-              <div class="cost-bar"><div class="cost-fill baseline" style="width: ${(state.project.revisedCost || 0) ? ((state.project.baselineCost || 0) / (state.project.revisedCost || 0)) * 100 : 100}%"></div></div>
-            </div>
-            <div class="cost-item">
-              <div class="cost-label">Variation Orders (VO)</div>
-              <div class="cost-value">${fmt(state.project.voCost || 0)} ${ccy()}</div>
-              <div class="cost-bar"><div class="cost-fill vo" style="width: ${(state.project.revisedCost || 0) ? ((state.project.voCost || 0) / (state.project.revisedCost || 0)) * 100 : 0}%"></div></div>
-            </div>
-            <div class="cost-item total">
-              <div class="cost-label">Revised Total Contract</div>
-              <div class="cost-value">${fmt(state.project.revisedCost || 0)} ${ccy()}</div>
-              <div class="cost-bar"><div class="cost-fill total" style="width: 100%"></div></div>
-            </div>
-          </div>
-        </div>
+        <div class="card-body" id="costBreakdownHost"></div>
       </div>
       <div class="card" style="margin-bottom:18px" id="linearCard">
         <div class="card-head">
@@ -1875,6 +1886,29 @@ body.auth-locked{overflow:hidden;}
             <tbody></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== BILLING ===== -->
+    <section class="page" id="page-billing">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title"><i class="bi bi-receipt"></i> Billing & Measurements</h1>
+          <div class="page-sub">View bill amounts from daily logs and print measurement sheets</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="renderBilling()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="billingKpiHost"></div>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-list-task" style="margin-right:6px;color:var(--brand)"></i> Daily Measurement Sheets</h3>
+          <span style="font-size:11px;color:var(--text-3)">print individual or grouped measurements</span>
+        </div>
+        <div class="card-body" id="billingHost"></div>
       </div>
     </section>
 
@@ -2629,6 +2663,7 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
     if(id==='setup') renderSetup();
     if(id==='planning') renderPlanning();
     if(id==='ipc') renderIPC();
+    if(id==='billing') renderBilling();
     window.scrollTo({top:0,behavior:'smooth'});
   });
 });
@@ -3176,6 +3211,7 @@ function saveLog(){
   resetLogForm();
   renderLogs();
   if(document.getElementById('page-planning').classList.contains('active')) renderPlanning();
+  if(document.getElementById('page-billing').classList.contains('active')) renderBilling();
   toast(`Logged: ${log.qty} added to ${(state.structures.find(s=>s.id===log.structureId)||{}).name||'?'}`,'good');
 }
 
@@ -3190,6 +3226,7 @@ function deleteLog(id){
   state.logs = state.logs.filter(l=>l.id!==id);
   save(); renderLogs();
   if(document.getElementById('page-planning').classList.contains('active')) renderPlanning();
+  if(document.getElementById('page-billing').classList.contains('active')) renderBilling();
   toast('Log deleted','good');
 }
 
@@ -7261,6 +7298,411 @@ function renderDashboard(){
   renderLengthCharts();
   renderCustomLengthItems();
   renderPVA();
+  renderCostBreakdown();
+}
+
+/* ============================================================
+   COST BREAKDOWN — linked to daily logs
+   ============================================================ */
+function renderCostBreakdown(){
+  const host = document.getElementById('costBreakdownHost');
+  if(!host) return;
+  const baseline = Number(state.project.baselineCost) || 0;
+  const vo = Number(state.project.voCost) || 0;
+  const revised = (Number(state.project.revisedCost) || 0) || (baseline + vo);
+  const earned = projectEarned();                        // ← linked to daily logs
+  const remaining = Math.max(0, revised - earned);
+  const denom = revised || baseline || 1;
+  const pct = v => Math.max(0, Math.min(100, (v/denom)*100));
+  const billedPctOfContract = revised ? (earned/revised)*100 : 0;
+
+  host.innerHTML = `
+    <div class="cost-breakdown">
+      <div class="cost-item">
+        <div class="cost-label">Baseline Contract Value</div>
+        <div class="cost-value">${fmt(baseline)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-meta">original contract amount</div>
+        <div class="cost-bar"><div class="cost-fill baseline" style="width:${pct(baseline)}%"></div></div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">Variation Orders (VO)</div>
+        <div class="cost-value">${fmt(vo)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-meta">${revised ? fmtPct((vo/revised)*100) + ' of revised total' : 'no variations'}</div>
+        <div class="cost-bar"><div class="cost-fill vo" style="width:${pct(vo)}%"></div></div>
+      </div>
+      <div class="cost-item total">
+        <div class="cost-label">Revised Total Contract</div>
+        <div class="cost-value">${fmt(revised)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-meta">baseline + variations</div>
+        <div class="cost-bar"><div class="cost-fill total" style="width:100%"></div></div>
+      </div>
+      <div class="cost-item billed">
+        <div class="cost-label"><i class="bi bi-check2-circle"></i> Billed / Earned from Daily Logs</div>
+        <div class="cost-value">${fmt(earned)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-meta">${fmtPct(billedPctOfContract)} of revised contract · ${state.logs.length} log entries</div>
+        <div class="cost-bar"><div class="cost-fill billed" style="width:${pct(earned)}%"></div></div>
+      </div>
+      <div class="cost-item remaining">
+        <div class="cost-label"><i class="bi bi-hourglass-split"></i> Remaining to Bill</div>
+        <div class="cost-value">${fmt(remaining)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-meta">${fmtPct(revised ? (remaining/revised)*100 : 0)} of revised contract still to earn</div>
+        <div class="cost-bar"><div class="cost-fill remaining" style="width:${pct(remaining)}%"></div></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--text-3)">
+      <i class="bi bi-info-circle" style="color:var(--accent)"></i>
+      <strong style="color:var(--text-1)">Linked to Daily Logs:</strong>
+      Billed and Remaining values are computed live from every entry in the <em>Daily Log Sheet</em> using each activity's quantity × rate.
+      View item-wise bill amounts and print measurement sheets in the <a href="#" onclick="document.querySelector('[data-page=billing]').click();return false" style="color:var(--brand);font-weight:600">Billing</a> tab.
+    </div>`;
+}
+
+/* ============================================================
+   BILLING — bill amounts based on daily log sheet + measurement sheet printing
+   ============================================================ */
+function getBillableItems(){
+  // Returns flat list of {struct, item, totalQty, amount, logs[]} for every (structure, item) combo that has at least one log
+  const out = [];
+  state.structures.forEach(s=>{
+    (s.items||[]).forEach(i=>{
+      const logs = state.logs.filter(l=>l.structureId===s.id && l.itemId===i.id);
+      if(!logs.length) return;
+      const totalQty = logs.reduce((sum,l)=>sum+(Number(l.qty)||0), 0);
+      const rate = Number(i.rate)||0;
+      const amount = totalQty * rate;
+      out.push({struct:s, item:i, logs, totalQty, rate, amount});
+    });
+  });
+  return out;
+}
+
+function renderBilling(){
+  const kpiHost = document.getElementById('billingKpiHost');
+  const host = document.getElementById('billingHost');
+  if(!host || !kpiHost) return;
+
+  const billable = getBillableItems();
+  const totalBilled = billable.reduce((s,b)=>s+b.amount, 0);
+  const structuresBilled = new Set(billable.map(b=>b.struct.id)).size;
+  const itemsBilled = billable.length;
+  const allLogs = billable.reduce((s,b)=>s+b.logs.length, 0);
+  const revised = (Number(state.project.revisedCost)||0) || (Number(state.project.baselineCost)||0);
+  const billedPct = revised ? (totalBilled/revised)*100 : 0;
+  // Latest log date across all billable items
+  let latestDate = '';
+  billable.forEach(b=>b.logs.forEach(l=>{ if(l.date && l.date>latestDate) latestDate=l.date; }));
+
+  kpiHost.innerHTML = `
+    <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
+      <div class="kpi-label">Total Bill Amount</div>
+      <div class="kpi-value">${fmt(totalBilled)}</div>
+      <div class="kpi-sub">${ccy()} · from daily logs</div></div>
+    <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-percent"></i></div>
+      <div class="kpi-label">% of Contract</div>
+      <div class="kpi-value">${fmtPct(billedPct)}</div>
+      <div class="bar" style="margin-top:6px"><i style="width:${Math.min(100,billedPct)}%"></i></div></div>
+    <div class="kpi"><div class="kpi-icon"><i class="bi bi-list-task"></i></div>
+      <div class="kpi-label">Items Billed</div>
+      <div class="kpi-value">${itemsBilled}</div>
+      <div class="kpi-sub">across ${structuresBilled} structures</div></div>
+    <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-pencil-square"></i></div>
+      <div class="kpi-label">Log Entries</div>
+      <div class="kpi-value">${allLogs}</div>
+      <div class="kpi-sub">measurement records</div></div>
+    <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-calendar-event"></i></div>
+      <div class="kpi-label">Latest Entry</div>
+      <div class="kpi-value" style="font-size:20px">${latestDate || '—'}</div>
+      <div class="kpi-sub">most recent log</div></div>`;
+
+  if(!billable.length){
+    host.innerHTML = `<div class="empty" style="padding:40px;text-align:center;color:var(--text-3)">
+      <i class="bi bi-receipt" style="font-size:32px;display:block;margin-bottom:10px;opacity:.4"></i>
+      <div style="font-weight:700;color:var(--text-2);margin-bottom:4px">No billable items yet</div>
+      <div style="font-size:12px">Add entries in the <strong>Daily Log Sheet</strong> tab — they will appear here for billing and measurement-sheet printing.</div>
+    </div>`;
+    return;
+  }
+
+  // Group billable items by structure
+  const byStruct = {};
+  billable.forEach(b=>{
+    const k = b.struct.id;
+    if(!byStruct[k]) byStruct[k] = {struct:b.struct, items:[], total:0};
+    byStruct[k].items.push(b);
+    byStruct[k].total += b.amount;
+  });
+
+  // Top action bar
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--line);border-radius:10px">
+    <div style="font-size:13px;color:var(--text-2)">
+      <i class="bi bi-info-circle" style="color:var(--accent);margin-right:4px"></i>
+      Click <strong style="color:var(--text-1)">Measurement Sheet</strong> next to any item to view & print its detailed measurements from the daily log.
+    </div>
+    <button class="btn btn-primary btn-mini" onclick="printAllMeasurements()" style="padding:8px 14px">
+      <i class="bi bi-printer"></i> Print Full Measurement Book
+    </button>
+  </div>`;
+
+  Object.values(byStruct).forEach(group=>{
+    const sPath = getStructPath(group.struct);
+    html += `<div class="bill-struct">
+      <div class="bill-struct-head">
+        <div class="bill-struct-title">
+          <i class="bi bi-folder2-open" style="color:var(--brand)"></i>
+          ${escapeHtml(sPath)}
+          <span style="font-size:11px;font-weight:500;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em">· ${group.struct.category}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="bill-struct-total">${ccy()} ${fmt(group.total)}</div>
+          <button class="btn-mini" onclick="printStructureMeasurement('${group.struct.id}')">
+            <i class="bi bi-printer"></i> Print All
+          </button>
+        </div>
+      </div>
+      <div class="bill-item-row head">
+        <div>Activity</div>
+        <div class="num">Unit</div>
+        <div class="num">Rate</div>
+        <div class="num">Total Qty</div>
+        <div class="num">Bill Amount</div>
+        <div class="actions">Action</div>
+      </div>`;
+
+    group.items.forEach(b=>{
+      html += `<div class="bill-item-row">
+        <div data-label="Activity">
+          <div class="bill-activity">${escapeHtml(b.item.activity)}
+            <span class="sub">${b.logs.length} log entr${b.logs.length===1?'y':'ies'}</span>
+          </div>
+        </div>
+        <div class="num" data-label="Unit">${escapeHtml(b.item.unit||'')}</div>
+        <div class="num" data-label="Rate">${fmt(b.rate)}</div>
+        <div class="num" data-label="Qty">${fmt2(b.totalQty)}</div>
+        <div class="amt" data-label="Amount">${ccy()} ${fmt(b.amount)}</div>
+        <div class="actions" data-label="Action">
+          <button class="btn-mini" onclick="printMeasurementSheet('${b.struct.id}','${b.item.id}')" title="View & print measurement sheet">
+            <i class="bi bi-file-earmark-ruled"></i> Measurement Sheet
+          </button>
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  host.innerHTML = html;
+}
+
+/* ----- Printable measurement sheet builders ----- */
+function _msHeader(title){
+  const p = state.project || {};
+  const today = new Date().toLocaleDateString();
+  return `
+    <div class="ms-header">
+      <div class="ms-title-block">
+        <h1>${escapeHtml(p.name || 'Untitled Project')}</h1>
+        <div class="ms-sub">${escapeHtml(p.location||'')}${p.capacity?(' · '+p.capacity+' '+(p.capacityUnit||'')):''}${p.type?(' · '+p.type):''}</div>
+      </div>
+      <div class="ms-meta">
+        <div><strong>Contract No:</strong> ${escapeHtml(p.contractNo||'—')}</div>
+        <div><strong>Employer:</strong> ${escapeHtml(p.employer||'—')}</div>
+        <div><strong>Contractor:</strong> ${escapeHtml(p.contractor||'—')}</div>
+        <div><strong>Printed:</strong> ${today}</div>
+      </div>
+    </div>
+    <h2 class="ms-doc-title">${escapeHtml(title)}</h2>`;
+}
+
+function _msItemSection(struct, item){
+  const logs = state.logs
+    .filter(l=>l.structureId===struct.id && l.itemId===item.id)
+    .slice()
+    .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const rate = Number(item.rate)||0;
+  const totalQty = logs.reduce((s,l)=>s+(Number(l.qty)||0), 0);
+  const totalAmt = totalQty * rate;
+  const planned = Number(item.plannedQty)||0;
+  const pctComplete = planned ? (totalQty/planned)*100 : 0;
+  const startingQty = (state.project.midProject && item.startingQty) ? Number(item.startingQty) : 0;
+  const cumulative = startingQty + totalQty;
+
+  let rowsHtml = '';
+  if(!logs.length){
+    rowsHtml = `<tr><td colspan="6" style="text-align:center;color:#777;padding:18px">No log entries recorded for this item</td></tr>`;
+  } else {
+    let running = startingQty;
+    logs.forEach((l,idx)=>{
+      const q = Number(l.qty)||0;
+      running += q;
+      const amt = q * rate;
+      rowsHtml += `<tr>
+        <td>${idx+1}</td>
+        <td>${escapeHtml(l.date||'')}${l.shift?'<br><span style="font-size:9px;color:#666">'+escapeHtml(l.shift)+'</span>':''}</td>
+        <td class="num">${fmt2(q)}</td>
+        <td class="num">${fmt2(running)}</td>
+        <td class="num">${fmt(amt)}</td>
+        <td>${escapeHtml(l.by||'')}${l.remarks?'<br><span style="font-size:9px;color:#666">'+escapeHtml(l.remarks)+'</span>':''}</td>
+      </tr>`;
+    });
+  }
+
+  return `
+    <div class="ms-section">
+      <div class="ms-item-head">
+        <div>
+          <div class="ms-item-struct">${escapeHtml(getStructPath(struct))}</div>
+          <div class="ms-item-act">${escapeHtml(item.activity)}</div>
+        </div>
+        <div class="ms-item-rate">
+          <div><span>Unit:</span> <strong>${escapeHtml(item.unit||'')}</strong></div>
+          <div><span>Rate:</span> <strong>${ccy()} ${fmt(rate)}/${escapeHtml(item.unit||'')}</strong></div>
+          <div><span>Planned Qty:</span> <strong>${fmt2(planned)} ${escapeHtml(item.unit||'')}</strong></div>
+        </div>
+      </div>
+      <table class="ms-table">
+        <thead>
+          <tr>
+            <th style="width:36px">SN</th>
+            <th style="width:90px">Date</th>
+            <th class="num" style="width:90px">Qty (${escapeHtml(item.unit||'')})</th>
+            <th class="num" style="width:100px">Cumulative</th>
+            <th class="num" style="width:110px">Amount (${ccy()})</th>
+            <th>Recorded By / Remarks</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot>
+          ${startingQty?`<tr class="ms-sub-tot"><td colspan="2">Opening Balance (already done)</td><td class="num">${fmt2(startingQty)}</td><td class="num">${fmt2(startingQty)}</td><td class="num">${fmt(startingQty*rate)}</td><td></td></tr>`:''}
+          <tr class="ms-tot">
+            <td colspan="2"><strong>This Period Total</strong></td>
+            <td class="num"><strong>${fmt2(totalQty)}</strong></td>
+            <td class="num"><strong>${fmt2(cumulative)}</strong></td>
+            <td class="num"><strong>${fmt(totalAmt)}</strong></td>
+            <td><strong>${fmtPct(pctComplete)} of planned</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+}
+
+function _msFooter(grandTotal){
+  return `
+    ${grandTotal!=null ? `<div class="ms-grand">
+      <div>GRAND TOTAL</div>
+      <div class="ms-grand-amt">${ccy()} ${fmt(grandTotal)}</div>
+    </div>`:''}
+    <div class="ms-signs">
+      <div><div class="ms-sig-line"></div><div>Prepared by</div></div>
+      <div><div class="ms-sig-line"></div><div>Checked by (Contractor)</div></div>
+      <div><div class="ms-sig-line"></div><div>Verified by (Engineer)</div></div>
+      <div><div class="ms-sig-line"></div><div>Approved by (Employer)</div></div>
+    </div>`;
+}
+
+function _msStyles(){
+  return `
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:#111;background:#fff;padding:24px;line-height:1.4}
+      .ms-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2px solid #111;margin-bottom:14px;gap:20px}
+      .ms-title-block h1{font-size:18px;font-weight:700;margin-bottom:2px}
+      .ms-sub{font-size:11px;color:#444}
+      .ms-meta{text-align:right;font-size:10px;line-height:1.6}
+      .ms-meta div strong{display:inline-block;min-width:80px;color:#333}
+      .ms-doc-title{font-size:14px;text-align:center;text-transform:uppercase;letter-spacing:.1em;padding:8px 0;border:1px solid #111;margin-bottom:16px;background:#f4f4f4;font-weight:700}
+      .ms-section{margin-bottom:22px;page-break-inside:avoid}
+      .ms-item-head{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;background:#f4f4f4;border:1px solid #999;border-bottom:0;gap:16px}
+      .ms-item-struct{font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+      .ms-item-act{font-size:13px;font-weight:700;margin-top:2px}
+      .ms-item-rate{text-align:right;font-size:10.5px;line-height:1.6}
+      .ms-item-rate span{color:#666}
+      .ms-table{width:100%;border-collapse:collapse;font-size:10.5px}
+      .ms-table th,.ms-table td{border:1px solid #999;padding:5px 7px;vertical-align:top}
+      .ms-table th{background:#e8e8e8;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.03em}
+      .ms-table td.num,.ms-table th.num{text-align:right;font-family:'Courier New',monospace}
+      .ms-table .ms-sub-tot td{background:#f7f7f7;color:#555;font-style:italic}
+      .ms-table .ms-tot td{background:#fff4d6;font-size:11.5px;border-top:2px solid #111}
+      .ms-grand{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#111;color:#fff;font-weight:700;font-size:13px;margin-top:6px;border-radius:0}
+      .ms-grand-amt{font-family:'Courier New',monospace;font-size:16px}
+      .ms-signs{display:grid;grid-template-columns:repeat(4,1fr);gap:30px;margin-top:60px;text-align:center;font-size:10.5px;color:#444;page-break-inside:avoid}
+      .ms-sig-line{height:1px;background:#111;margin-bottom:5px}
+      .ms-toolbar{position:fixed;top:10px;right:10px;display:flex;gap:8px;z-index:99}
+      .ms-toolbar button{padding:8px 14px;border:1px solid #111;background:#111;color:#fff;font-weight:600;cursor:pointer;border-radius:5px;font-size:12px}
+      .ms-toolbar button.ghost{background:#fff;color:#111}
+      @media print{
+        body{padding:14px}
+        .ms-toolbar{display:none}
+        .ms-section{page-break-inside:avoid}
+      }
+    </style>`;
+}
+
+function _openPrintWindow(title, bodyHtml){
+  const w = window.open('', '_blank', 'width=1000,height=800');
+  if(!w){ toast('Pop-up blocked — please allow pop-ups to print','bad'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>${_msStyles()}</head>
+    <body>
+      <div class="ms-toolbar">
+        <button onclick="window.print()"><i></i>🖨️ Print</button>
+        <button class="ghost" onclick="window.close()">Close</button>
+      </div>
+      ${bodyHtml}
+    </body></html>`);
+  w.document.close();
+  w.focus();
+}
+
+function printMeasurementSheet(structureId, itemId){
+  const s = state.structures.find(x=>x.id===structureId);
+  if(!s){ toast('Structure not found','bad'); return; }
+  const i = (s.items||[]).find(x=>x.id===itemId);
+  if(!i){ toast('Item not found','bad'); return; }
+  const logs = state.logs.filter(l=>l.structureId===s.id && l.itemId===i.id);
+  const total = logs.reduce((sum,l)=>sum+(Number(l.qty)||0), 0) * (Number(i.rate)||0);
+  const title = `Measurement Sheet — ${i.activity}`;
+  const body = _msHeader(title) + _msItemSection(s, i) + _msFooter(total);
+  _openPrintWindow(title, body);
+}
+
+function printStructureMeasurement(structureId){
+  const s = state.structures.find(x=>x.id===structureId);
+  if(!s){ toast('Structure not found','bad'); return; }
+  const items = (s.items||[]).filter(i => state.logs.some(l=>l.structureId===s.id && l.itemId===i.id));
+  if(!items.length){ toast('No logged items in this structure','bad'); return; }
+  const title = `Measurement Sheet — ${getStructPath(s)}`;
+  let body = _msHeader(title);
+  let grand = 0;
+  items.forEach(i=>{
+    body += _msItemSection(s, i);
+    const logs = state.logs.filter(l=>l.structureId===s.id && l.itemId===i.id);
+    grand += logs.reduce((sum,l)=>sum+(Number(l.qty)||0), 0) * (Number(i.rate)||0);
+  });
+  body += _msFooter(grand);
+  _openPrintWindow(title, body);
+}
+
+function printAllMeasurements(){
+  const billable = getBillableItems();
+  if(!billable.length){ toast('No billable items to print','bad'); return; }
+  // Group by structure
+  const byStruct = {};
+  billable.forEach(b=>{
+    if(!byStruct[b.struct.id]) byStruct[b.struct.id] = {struct:b.struct, items:[]};
+    byStruct[b.struct.id].items.push(b.item);
+  });
+  const title = 'Measurement Book — All Items';
+  let body = _msHeader(title);
+  let grand = 0;
+  Object.values(byStruct).forEach(g=>{
+    body += `<h3 style="font-size:13px;margin:20px 0 8px;padding:6px 10px;background:#111;color:#fff">${escapeHtml(getStructPath(g.struct))}</h3>`;
+    g.items.forEach(i=>{
+      body += _msItemSection(g.struct, i);
+      const logs = state.logs.filter(l=>l.structureId===g.struct.id && l.itemId===i.id);
+      grand += logs.reduce((sum,l)=>sum+(Number(l.qty)||0), 0) * (Number(i.rate)||0);
+    });
+  });
+  body += _msFooter(grand);
+  _openPrintWindow(title, body);
 }
 
 /* ---- Reports ---- */
