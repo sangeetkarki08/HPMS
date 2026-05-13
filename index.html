@@ -2110,7 +2110,7 @@ let state = (()=>{
 /* ---- ROLES & PERMISSIONS ---- */
 const ROLE_DEFS = {
   director: {name:'Director', org:'Employer', avatar:'D',
-    perms:new Set([])  // view-only
+    perms:new Set(['log.create','log.delete'])
   },
   manager: {name:'Project Manager', org:'Employer', avatar:'PM',
     perms:new Set(['plan.approve','ipc.approve','log.create','log.delete'])
@@ -4362,7 +4362,7 @@ function renderResourceSiteSelectors(){
   if(siteSelect) {
     const current = siteSelect.value || '';
     siteSelect.innerHTML = siteOptions.join('');
-    siteSelect.value = current || (sites[0]?.id || '');
+    siteSelect.value = current;
   }
   if(historySelect) {
     const current = historySelect.value || '';
@@ -4383,6 +4383,7 @@ function createResourceSite(){
   save();
   input.value = '';
   renderResourceSiteSelectors();
+  document.getElementById('resSite').value = id;
   renderResources();
 }
 
@@ -4542,13 +4543,13 @@ function saveResourceLog(){
     }
   });
   if(invalidRows.length){ toast('Please name all filled resource rows','bad'); return; }
-  // Replace any existing log on the same date+shift
-  state.resources = state.resources.filter(r => !(r.date===date && r.shift===log.shift));
+  // Replace any existing log on the same date+shift/site
+  state.resources = state.resources.filter(r => !(r.date===date && r.shift===log.shift && r.siteId===log.siteId));
   state.resources.push(log);
   save();
   renderResourceHistory();
   renderResourceKPIs();
-  toast(`Resource log saved for ${date} (${log.shift} shift)`,'good');
+  toast(`Resource log saved for ${date} (${log.shift} shift) - ${log.siteName}`,'good');
 }
 
 function renderResourceKPIs(){
