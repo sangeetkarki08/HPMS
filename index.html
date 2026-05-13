@@ -193,6 +193,19 @@ tbody tr:hover{background:var(--bg-2)}
 
 /* KPI */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+
+/* Cost Breakdown */
+.cost-breakdown{display:flex;flex-direction:column;gap:16px}
+.cost-item{display:flex;flex-direction:column;gap:6px;padding:12px;background:var(--bg-1);border-radius:8px;border:1px solid var(--line)}
+.cost-item.total{background:var(--brand-soft);border-color:var(--brand)}
+.cost-label{font-size:13px;font-weight:600;color:var(--text-1)}
+.cost-value{font-size:16px;font-weight:700;color:var(--brand)}
+.cost-item.total .cost-value{color:var(--brand)}
+.cost-bar{height:6px;background:var(--bg-2);border-radius:3px;overflow:hidden;margin-top:4px}
+.cost-fill{height:100%;border-radius:3px}
+.cost-fill.baseline{background:var(--accent)}
+.cost-fill.vo{background:var(--warn)}
+.cost-fill.total{background:linear-gradient(90deg,var(--accent),var(--warn))}
 .kpi{
   background:var(--bg-1);border:1px solid var(--line);
   border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;
@@ -364,6 +377,9 @@ tbody tr:hover{background:var(--bg-2)}
 .role-pill[data-role="contractor"] .role-avatar{background:linear-gradient(135deg,#8b5cf6,#4f46e5);color:#fff}
 .role-pill[data-role="employer"] .role-avatar{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
 .role-pill[data-role="guest"] .role-avatar{background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff}
+.auth-locked .topbar,
+.auth-locked main{display:none !important;}
+body.auth-locked{overflow:hidden;}
 .role-info{display:flex;flex-direction:column;line-height:1.1}
 .role-name{font-size:11.5px;font-weight:700;color:var(--text-1)}
 .role-org{font-size:9.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
@@ -1253,6 +1269,9 @@ tbody tr:hover{background:var(--bg-2)}
           <h1 class="page-title"><i class="bi bi-gear-fill"></i> Project Setup</h1>
           <div class="page-sub">Define project info, structures and base quantities. Weightages compute automatically from cost amounts.</div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn btn-bad" onclick="resetAll()"><i class="bi bi-arrow-counterclockwise"></i> Reset All</button>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:18px">
@@ -1269,6 +1288,9 @@ tbody tr:hover{background:var(--bg-2)}
             <div class="field"><label>Contractor</label><input type="text" id="pCon" placeholder="e.g. ABC Constructions"></div>
             <div class="field"><label>Contract No.</label><input type="text" id="pContractNo" placeholder="e.g. HH-JIJV/MKHPP/2080-81/CW-01"></div>
             <div class="field"><label>Contract Value</label><input type="number" id="pContractValue" step="0.01" placeholder="Total contract amount (excl. VAT)"></div>
+            <div class="field"><label>Baseline Cost</label><input type="number" id="pBaselineCost" step="0.01" placeholder="Original contract value"></div>
+            <div class="field"><label>VO Cost</label><input type="number" id="pVoCost" step="0.01" placeholder="Variation order costs"></div>
+            <div class="field"><label>Revised Cost</label><input type="number" id="pRevisedCost" step="0.01" placeholder="Total revised contract value"></div>
             <div class="field"><label>Baseline Start</label><input type="date" id="pStart"></div>
             <div class="field"><label>Baseline End</label><input type="date" id="pEnd"></div>
             <div class="field"><label>Revised Start (optional)</label><input type="date" id="pRevStart"></div>
@@ -1738,7 +1760,32 @@ tbody tr:hover{background:var(--bg-2)}
 
       <div class="kpi-grid" id="kpiHost"></div>
 
-      <!-- Linear Structures - Length-wise Tracking -->
+      <!-- Cost Breakdown -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-cash" style="margin-right:6px;color:var(--brand)"></i> Contract Cost Breakdown</h3>
+          <span style="font-size:11px;color:var(--text-3)">baseline, variations, and revisions</span>
+        </div>
+        <div class="card-body">
+          <div class="cost-breakdown">
+            <div class="cost-item">
+              <div class="cost-label">Baseline Contract Value</div>
+              <div class="cost-value">${fmt(state.project.baselineCost || 0)} ${ccy()}</div>
+              <div class="cost-bar"><div class="cost-fill baseline" style="width: ${(state.project.revisedCost || 0) ? ((state.project.baselineCost || 0) / (state.project.revisedCost || 0)) * 100 : 100}%"></div></div>
+            </div>
+            <div class="cost-item">
+              <div class="cost-label">Variation Orders (VO)</div>
+              <div class="cost-value">${fmt(state.project.voCost || 0)} ${ccy()}</div>
+              <div class="cost-bar"><div class="cost-fill vo" style="width: ${(state.project.revisedCost || 0) ? ((state.project.voCost || 0) / (state.project.revisedCost || 0)) * 100 : 0}%"></div></div>
+            </div>
+            <div class="cost-item total">
+              <div class="cost-label">Revised Total Contract</div>
+              <div class="cost-value">${fmt(state.project.revisedCost || 0)} ${ccy()}</div>
+              <div class="cost-bar"><div class="cost-fill total" style="width: 100%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="card" style="margin-bottom:18px" id="linearCard">
         <div class="card-head">
           <h3><i class="bi bi-rulers" style="margin-right:6px;color:var(--brand)"></i> Length-wise Progress — Tunnels &amp; Linear Structures</h3>
@@ -2115,6 +2162,7 @@ const DEFAULT = {
   project:{name:'Mewa Khola Hydropower Project',capacity:'23',capacityUnit:'MW',type:'Run-of-River',location:'Taplejung, Province No. 1, Nepal',
     employer:'High Himal-Jade Infra JV',contractor:'High Himalaya Hydro Construction Pvt. Ltd. (3HC)',startDate:'2026-04-10',endDate:'2028-06-01',currency:'NPR',
     contractNo:'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01', contractValue:1380082100.12,
+    baselineCost:1380082100.12, voCost:0, revisedCost:1380082100.12,
     revStartDate:'2026-04-10', revEndDate:'2028-06-01', extReason:'',
     midProject:true},
   structures:[],
@@ -2213,6 +2261,7 @@ function applyPermissions(){
     }
   });
   renderAuthControls();
+  document.body.classList.toggle('auth-locked', !state.username);
 }
 
 function renderAuthControls(){
@@ -2262,6 +2311,7 @@ function logoutUser(){
   state.role = 'guest';
   save();
   applyPermissions();
+  openLoginModal();
   toast('Logged out','good');
 }
 
@@ -2597,6 +2647,9 @@ function renderProject(){
   document.getElementById('pEnd').value = state.project.endDate || '';
   document.getElementById('pContractNo').value = state.project.contractNo || '';
   document.getElementById('pContractValue').value = state.project.contractValue || '';
+  document.getElementById('pBaselineCost').value = state.project.baselineCost || '';
+  document.getElementById('pVoCost').value = state.project.voCost || '';
+  document.getElementById('pRevisedCost').value = state.project.revisedCost || '';
   document.getElementById('pRevStart').value = state.project.revStartDate || '';
   document.getElementById('pRevEnd').value = state.project.revEndDate || '';
   document.getElementById('pExtReason').value = state.project.extReason || '';
@@ -2609,13 +2662,18 @@ function renderProject(){
   toggleMidProject();
 }
 ['pName','pCap','pCapUnit','pType','pLoc','pCcy','pEmp','pCon','pStart','pEnd',
- 'pContractNo','pContractValue','pRevStart','pRevEnd','pExtReason'].forEach(id=>{
+ 'pContractNo','pContractValue','pBaselineCost','pVoCost','pRevisedCost','pRevStart','pRevEnd','pExtReason'].forEach(id=>{
   document.getElementById(id).addEventListener('input', e=>{
     const map = {pName:'name',pCap:'capacity',pCapUnit:'capacityUnit',pType:'type',pLoc:'location',
       pCcy:'currency',pEmp:'employer',pCon:'contractor',pStart:'startDate',pEnd:'endDate',
-      pContractNo:'contractNo', pContractValue:'contractValue', pRevStart:'revStartDate', pRevEnd:'revEndDate', pExtReason:'extReason'};
+      pContractNo:'contractNo', pContractValue:'contractValue', pBaselineCost:'baselineCost', pVoCost:'voCost', pRevisedCost:'revisedCost',
+      pRevStart:'revStartDate', pRevEnd:'revEndDate', pExtReason:'extReason'};
     const v = e.target.value;
-    state.project[map[id]] = (id==='pContractValue') ? (Number(v)||0) : v;
+    state.project[map[id]] = (['pContractValue','pBaselineCost','pVoCost','pRevisedCost'].includes(id)) ? (Number(v)||0) : v;
+    if(['pBaselineCost','pVoCost'].includes(id)){
+      state.project.revisedCost = (state.project.baselineCost || 0) + (state.project.voCost || 0);
+      document.getElementById('pRevisedCost').value = state.project.revisedCost;
+    }
     save();
     if(id==='pName' || id==='pCap' || id==='pCapUnit' || id==='pType'){
       const nm = state.project.name || 'Untitled Project';
@@ -2687,13 +2745,15 @@ function renderMidProject(){
           </div>
           <table class="mid-table">
             <thead>
-              <tr><th>Activity</th><th class="num">Total Planned</th><th class="num">Already Done</th><th class="num">% Done</th><th></th></tr>
+              <tr><th>Activity</th><th class="num">Total Planned</th><th class="num">Planned Amount</th><th class="num">Already Done</th><th class="num">Earned Amount</th><th class="num">% Done</th><th></th></tr>
             </thead>
             <tbody>
               ${items.map((i,idx)=>{
                 const plan = Number(i.plannedQty)||0;
                 const done = Number(i.startingQty)||0;
                 const pct = plan ? Math.min(100,(done/plan)*100) : 0;
+                const plannedAmt = plan * (Number(i.rate)||0);
+                const earnedAmt = done * (Number(i.rate)||0);
                 const cls = pct>=90?'good':pct>=50?'info':pct>0?'warn':'mut';
                 return `<tr>
                   <td>
@@ -2701,11 +2761,13 @@ function renderMidProject(){
                     <div class="mid-act-unit">${escapeHtml(i.unit)} · ${ccy()} ${fmt(i.rate)}/${escapeHtml(i.unit)}</div>
                   </td>
                   <td class="num"><span class="mid-num-readonly">${fmt2(plan)}</span></td>
+                  <td class="num"><span class="mid-num-readonly">${fmt(plannedAmt)}</span></td>
                   <td class="num">
                     <input type="number" step="0.01" value="${i.startingQty||''}" placeholder="0.00" min="0" max="${plan}"
                       oninput="updateStartingQty('${s.id}','${i.id}',this.value)"
                       class="mid-input">
                   </td>
+                  <td class="num"><span class="mid-num-readonly">${fmt(earnedAmt)}</span></td>
                   <td class="num">
                     <div class="mid-pct-cell">
                       <div class="mid-bar"><i style="width:${pct}%;background:var(--${cls==='good'?'good':cls==='info'?'accent':cls==='warn'?'warn':'text-3'})"></i></div>
@@ -5660,6 +5722,7 @@ function loadMewaKholaTemplate(){
     // + Access Road (Bill 21) 75,722,750.00 = 1,210,732,323.35 ex-VAT
     // + 13% VAT = 1,368,127,525.39 + Ropeway incl VAT 11,954,574.73 = 1,380,082,100.12
     contractValue: 1380082100.12,
+    baselineCost: 1380082100.12, voCost: 0, revisedCost: 1380082100.12,
     revStartDate: '2026-04-10',
     revEndDate: '2028-06-01',
     extReason: '',
@@ -7084,6 +7147,21 @@ function renderDashboard(){
       <div class="kpi-label">Earned to Date</div>
       <div class="kpi-value">${fmt(earnedAmt)}</div>
       <div class="kpi-sub">${ccy()} · ${totalLogs} log entries</div>
+    </div>
+    <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
+      <div class="kpi-label">Baseline Cost</div>
+      <div class="kpi-value">${fmt(state.project.baselineCost || 0)}</div>
+      <div class="kpi-sub">${ccy()} · original contract</div>
+    </div>
+    <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-plus-circle"></i></div>
+      <div class="kpi-label">VO Cost</div>
+      <div class="kpi-value">${fmt(state.project.voCost || 0)}</div>
+      <div class="kpi-sub">${ccy()} · variation orders</div>
+    </div>
+    <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-arrow-repeat"></i></div>
+      <div class="kpi-label">Revised Cost</div>
+      <div class="kpi-value">${fmt(state.project.revisedCost || 0)}</div>
+      <div class="kpi-sub">${ccy()} · total revised</div>
     </div>
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-calendar-day"></i></div>
       <div class="kpi-label">Today</div>
