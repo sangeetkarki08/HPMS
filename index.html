@@ -69,13 +69,25 @@ h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;f
 .proj-name{font-weight:700;font-size:15px;color:var(--text-1);line-height:1.15;font-family:'Bricolage Grotesque'}
 .proj-meta{font-size:11.5px;color:var(--text-3);margin-top:2px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 
-.tabs{display:flex;gap:2px;flex:1;justify-content:center;overflow-x:auto;scrollbar-width:none}
+.tabs-wrap{
+  display:flex;align-items:center;gap:6px;flex:1;justify-content:center;
+}
+.tabs-scroll-btn{
+  background:var(--bg-2);border:1px solid var(--line);width:32px;height:32px;
+  border-radius:8px;cursor:pointer;display:grid;place-items:center;
+  color:var(--text-2);font-size:14px;flex-shrink:0;transition:all .15s;
+}
+.tabs-scroll-btn:hover{background:var(--bg-3);color:var(--text-1)}
+.tabs{
+  display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none;
+  scroll-behavior:smooth;min-width:0;
+}
 .tabs::-webkit-scrollbar{display:none}
 .tab-btn{
   background:transparent;border:0;color:var(--text-2);
   padding:9px 16px;border-radius:9px;cursor:pointer;
   font-size:13px;font-weight:600;font-family:inherit;white-space:nowrap;
-  display:inline-flex;align-items:center;gap:7px;transition:all .15s;
+  display:inline-flex;align-items:center;gap:7px;transition:all .15s;flex-shrink:0;
 }
 .tab-btn:hover{background:var(--bg-2);color:var(--text-1)}
 .tab-btn.active{background:var(--brand-soft);color:var(--brand)}
@@ -348,6 +360,10 @@ tbody tr:hover{background:var(--bg-2)}
 .role-pill[data-role="director"] .role-avatar{background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff}
 .role-pill[data-role="manager"] .role-avatar{background:linear-gradient(135deg,var(--good),#34d399);color:#fff}
 .role-pill[data-role="engineer"] .role-avatar{background:linear-gradient(135deg,var(--accent),#0891b2);color:#fff}
+.role-pill[data-role="admin"] .role-avatar{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff}
+.role-pill[data-role="contractor"] .role-avatar{background:linear-gradient(135deg,#8b5cf6,#4f46e5);color:#fff}
+.role-pill[data-role="employer"] .role-avatar{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+.role-pill[data-role="guest"] .role-avatar{background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff}
 .role-info{display:flex;flex-direction:column;line-height:1.1}
 .role-name{font-size:11.5px;font-weight:700;color:var(--text-1)}
 .role-org{font-size:9.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
@@ -954,7 +970,17 @@ tbody tr:hover{background:var(--bg-2)}
   border:1px solid var(--line);border-radius:16px;padding:24px 28px;
   margin-bottom:18px;display:grid;
   grid-template-columns:auto 1fr;gap:32px;align-items:center;position:relative;overflow:hidden;
+  cursor:grab;
 }
+.hero-card.dragging{opacity:.95;cursor:grabbing}
+.hero-card .hero-drag-handle{
+  position:absolute;top:18px;right:18px;width:34px;height:34px;
+  display:grid;place-items:center;border-radius:12px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);
+  color:var(--text-3);font-size:14px;cursor:grab;z-index:2;
+}
+.hero-card .hero-drag-handle:hover{background:rgba(255,255,255,.18);color:var(--text-1)}
+.hero-card.dragging .hero-drag-handle{cursor:grabbing}
 .hero-card::before{
   content:"";position:absolute;top:-40%;right:-10%;width:380px;height:380px;
   background:radial-gradient(circle,var(--brand-soft) 0%,transparent 70%);
@@ -1181,19 +1207,23 @@ tbody tr:hover{background:var(--bg-2)}
         <div class="proj-meta" id="projMeta">Configure in Setup</div>
       </div>
     </div>
-    <nav class="tabs">
-      <button class="tab-btn active" data-page="setup"><i class="bi bi-gear-fill"></i> Setup</button>
-      <button class="tab-btn" data-page="milestones"><i class="bi bi-flag-fill"></i> Milestones</button>
-      <button class="tab-btn" data-page="planning"><i class="bi bi-calendar-week"></i> Planning</button>
-      <button class="tab-btn" data-page="log"><i class="bi bi-pencil-square"></i> Daily Log</button>
-      <button class="tab-btn" data-page="resources"><i class="bi bi-people-fill"></i> Resources</button>
-      <button class="tab-btn" data-page="weather"><i class="bi bi-cloud-rain-heavy-fill"></i> Weather</button>
-      <button class="tab-btn" data-page="infrastructure"><i class="bi bi-truck"></i> Infrastructure</button>
-      <button class="tab-btn" data-page="events"><i class="bi bi-exclamation-triangle-fill"></i> Events</button>
-      <button class="tab-btn" data-page="ipc"><i class="bi bi-receipt"></i> IPC &amp; Payments</button>
-      <button class="tab-btn" data-page="dashboard"><i class="bi bi-bar-chart-fill"></i> Dashboard</button>
-      <button class="tab-btn" data-page="reports"><i class="bi bi-file-earmark-text"></i> Reports</button>
-    </nav>
+    <div class="tabs-wrap">
+      <button class="tabs-scroll-btn" id="tabsScrollPrev" onclick="scrollTabs(-120)" title="Scroll left"><i class="bi bi-chevron-left"></i></button>
+      <nav class="tabs" id="tabsNav">
+        <button class="tab-btn active" data-page="setup"><i class="bi bi-gear-fill"></i> Setup</button>
+        <button class="tab-btn" data-page="milestones"><i class="bi bi-flag-fill"></i> Milestones</button>
+        <button class="tab-btn" data-page="planning"><i class="bi bi-calendar-week"></i> Planning</button>
+        <button class="tab-btn" data-page="log"><i class="bi bi-pencil-square"></i> Daily Log</button>
+        <button class="tab-btn" data-page="resources"><i class="bi bi-people-fill"></i> Resources</button>
+        <button class="tab-btn" data-page="weather"><i class="bi bi-cloud-rain-heavy-fill"></i> Weather</button>
+        <button class="tab-btn" data-page="infrastructure"><i class="bi bi-truck"></i> Infrastructure</button>
+        <button class="tab-btn" data-page="events"><i class="bi bi-exclamation-triangle-fill"></i> Events</button>
+        <button class="tab-btn" data-page="ipc"><i class="bi bi-receipt"></i> IPC &amp; Payments</button>
+        <button class="tab-btn" data-page="dashboard"><i class="bi bi-bar-chart-fill"></i> Dashboard</button>
+        <button class="tab-btn" data-page="reports"><i class="bi bi-file-earmark-text"></i> Reports</button>
+      </nav>
+      <button class="tabs-scroll-btn" id="tabsScrollNext" onclick="scrollTabs(120)" title="Scroll right"><i class="bi bi-chevron-right"></i></button>
+    </div>
     <div class="actions">
       <div class="role-pill" onclick="openRoleModal()" title="Switch role">
         <span class="role-avatar" id="roleAvatar">D</span>
@@ -1203,6 +1233,8 @@ tbody tr:hover{background:var(--bg-2)}
         </div>
         <i class="bi bi-chevron-down" style="font-size:11px;color:var(--text-3);margin-left:2px"></i>
       </div>
+      <button class="btn-icon" onclick="openLoginModal()" id="loginBtn" title="Login"><i class="bi bi-box-arrow-in-right"></i></button>
+      <button class="btn-icon" onclick="logoutUser()" id="logoutBtn" title="Logout" style="display:none"><i class="bi bi-box-arrow-right"></i></button>
       <button class="btn-icon" id="themeToggle" title="Toggle theme"><i class="bi bi-moon-stars-fill" id="themeIcon"></i></button>
       <button class="btn-icon" onclick="exportData()" title="Export JSON"><i class="bi bi-download"></i></button>
       <button class="btn-icon" onclick="document.getElementById('importFile').click()" title="Import JSON"><i class="bi bi-upload"></i></button>
@@ -1896,6 +1928,29 @@ tbody tr:hover{background:var(--bg-2)}
   </div>
 </div>
 
+<div class="modal-bd" id="modalLogin">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head">
+      <h3><i class="bi bi-box-arrow-in-right" style="margin-right:6px;color:var(--brand)"></i> Log In</h3>
+      <button class="btn-icon" onclick="closeLoginModal()" style="width:30px;height:30px"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label>Username</label><input type="text" id="loginUsername" placeholder="admin, engineer, contractor, employer, director"></div>
+        <div class="field" style="grid-column:1/-1"><label>Password</label><input type="password" id="loginPassword" placeholder="Enter password"></div>
+      </div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:10px">
+        Use one of these accounts:<br>
+        admin/admin · engineer/engineer · contractor/contractor · employer/employer · director/director
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeLoginModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="loginUser()"><i class="bi bi-check2"></i> Login</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bd" id="modalIPC">
   <div class="modal" style="max-width:680px">
     <div class="modal-head">
@@ -2078,7 +2133,9 @@ const DEFAULT = {
   weather:[],     // daily weather logs
   infrastructure:[], // daily infra logs: {id,date,by,notes,facilities:{key:{status,hoursAvail,metricValue,detail}}}
   infraFacilities:null, // [{key,label,icon,metricLabel}] — null means use defaults
-  role:'director',
+  username:'',
+  role:'guest',
+  heroCardOffset:{x:0,y:0},
   theme:'dark'
 };
 
@@ -2099,7 +2156,9 @@ let state = (()=>{
       data.weather = data.weather || [];
       data.infrastructure = data.infrastructure || [];
       data.infraFacilities = data.infraFacilities || null;
-      data.role = data.role || 'director';
+      data.username = data.username || '';
+      data.role = data.role || 'guest';
+      data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
       data.project = Object.assign({contractNo:'', contractValue:0, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
       return data;
     }
@@ -2109,15 +2168,32 @@ let state = (()=>{
 
 /* ---- ROLES & PERMISSIONS ---- */
 const ROLE_DEFS = {
-  director: {name:'Director', org:'Employer', avatar:'D',
-    perms:new Set(['log.create','log.delete'])
+  guest: {name:'Guest', org:'Not signed in', avatar:'G', perms:new Set()},
+  admin: {name:'Administrator', org:'Owner', avatar:'A',
+    perms:new Set(['setup.edit','plan.edit','plan.approve','plan.revise','ipc.create','ipc.approve','log.create','log.delete'])
   },
+  director: {name:'Director', org:'Employer', avatar:'D', perms:new Set()},
   manager: {name:'Project Manager', org:'Employer', avatar:'PM',
     perms:new Set(['plan.approve','ipc.approve','log.create','log.delete'])
   },
   engineer: {name:'Engineer / Contractor', org:'Contractor', avatar:'E',
     perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise'])
+  },
+  contractor: {name:'Contractor', org:'Contractor', avatar:'C',
+    perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise'])
+  },
+  employer: {name:'Employer', org:'Employer', avatar:'EM',
+    perms:new Set(['plan.approve','ipc.approve'])
   }
+};
+
+const AUTH_DEFS = {
+  admin:{password:'admin', role:'admin', display:'Administrator'},
+  engineer:{password:'engineer', role:'engineer', display:'Engineer'},
+  contractor:{password:'contractor', role:'contractor', display:'Contractor'},
+  employer:{password:'employer', role:'employer', display:'Employer'},
+  director:{password:'director', role:'director', display:'Director'},
+  manager:{password:'manager', role:'manager', display:'Project Manager'}
 };
 
 function hasPerm(perm){ return (ROLE_DEFS[state.role]||{perms:new Set()}).perms.has(perm); }
@@ -2139,23 +2215,69 @@ function applyPermissions(){
       }
     }
   });
-  // Update role pill
+  renderAuthControls();
+}
+
+function renderAuthControls(){
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  if(loginBtn) loginBtn.style.display = state.username ? 'none' : 'inline-flex';
+  if(logoutBtn) logoutBtn.style.display = state.username ? 'inline-flex' : 'none';
   const pill = document.querySelector('.role-pill');
-  const def = ROLE_DEFS[state.role];
-  if(pill && def){
+  const def = ROLE_DEFS[state.role] || ROLE_DEFS.guest;
+  if(pill){
     pill.dataset.role = state.role;
     document.getElementById('roleAvatar').textContent = def.avatar;
     document.getElementById('roleName').textContent = def.name;
-    document.getElementById('roleOrg').textContent = def.org;
+    document.getElementById('roleOrg').textContent = state.username ? `Signed in as ${state.username}` : def.org;
   }
 }
 
+function openLoginModal(){
+  const modal = document.getElementById('modalLogin');
+  if(!modal) return;
+  modal.querySelector('#loginUsername').value = '';
+  modal.querySelector('#loginPassword').value = '';
+  modal.classList.add('show');
+}
+function closeLoginModal(){ document.getElementById('modalLogin').classList.remove('show'); }
+function loginUser(){
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if(!username || !AUTH_DEFS[username] || AUTH_DEFS[username].password !== password){
+    toast('Invalid login credentials','bad');
+    return;
+  }
+  state.username = username;
+  state.role = AUTH_DEFS[username].role;
+  save();
+  applyPermissions();
+  closeLoginModal();
+  toast(`Logged in as ${AUTH_DEFS[username].display}`,'good');
+}
+function logoutUser(){
+  state.username = '';
+  state.role = 'guest';
+  save();
+  applyPermissions();
+  toast('Logged out','good');
+}
+
 function openRoleModal(){
+  if(!state.username){
+    openLoginModal();
+    return;
+  }
   document.querySelectorAll('.role-card').forEach(c=>c.classList.toggle('selected', c.dataset.role===state.role));
   document.getElementById('modalRole').classList.add('show');
 }
 function closeRoleModal(){ document.getElementById('modalRole').classList.remove('show'); }
 function selectRole(r){
+  if(!state.username){
+    toast('Please log in first','bad');
+    closeRoleModal();
+    return;
+  }
   state.role = r;
   save();
   applyPermissions();
@@ -2432,6 +2554,10 @@ document.getElementById('themeToggle').addEventListener('click', ()=>setTheme(st
 setTheme(state.theme || 'dark');
 
 /* ---- Tabs ---- */
+function scrollTabs(amount){
+  const nav = document.getElementById('tabsNav');
+  if(nav) nav.scrollLeft += amount;
+}
 document.querySelectorAll('.tab-btn').forEach(b=>{
   b.addEventListener('click', ()=>{
     const id = b.dataset.page;
@@ -2439,6 +2565,14 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
     document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('page-'+id).classList.add('active');
+    // Scroll the clicked tab into view
+    const nav = document.getElementById('tabsNav');
+    if(nav){
+      const rect = b.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      if(rect.left < navRect.left) nav.scrollLeft -= (navRect.left - rect.left + 10);
+      if(rect.right > navRect.right) nav.scrollLeft += (rect.right - navRect.right + 10);
+    }
     if(id==='dashboard') renderDashboard();
     if(id==='log') { renderLogForm(); renderLogs(); }
     if(id==='resources') renderResources();
@@ -6671,6 +6805,55 @@ function renderTimeline(){
   host.innerHTML = `<div class="timeline-grid">${summaryHtml}<div style="margin-top:6px">${tracksHtml}</div></div>`;
 }
 
+let _heroDrag = null;
+let _heroDropStart = null;
+let _heroOffsetStart = null;
+function initHeroCardDrag(){
+  const host = document.getElementById('heroCard');
+  if(!host) return;
+  const handle = host.querySelector('.hero-drag-handle');
+  if(!handle) return;
+  handle.onmousedown = heroDragStart;
+  handle.ontouchstart = heroDragStart;
+}
+function heroDragStart(e){
+  e.preventDefault();
+  const host = document.getElementById('heroCard');
+  if(!host) return;
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const y = e.touches ? e.touches[0].clientY : e.clientY;
+  _heroDrag = host;
+  _heroDropStart = {x,y};
+  _heroOffsetStart = {x: state.heroCardOffset.x || 0, y: state.heroCardOffset.y || 0};
+  host.classList.add('dragging');
+  document.addEventListener('mousemove', heroDragMove);
+  document.addEventListener('mouseup', heroDragEnd);
+  document.addEventListener('touchmove', heroDragMove, {passive:false});
+  document.addEventListener('touchend', heroDragEnd);
+}
+function heroDragMove(e){
+  if(!_heroDrag) return;
+  e.preventDefault();
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const y = e.touches ? e.touches[0].clientY : e.clientY;
+  const dx = x - _heroDropStart.x;
+  const dy = y - _heroDropStart.y;
+  const nx = _heroOffsetStart.x + dx;
+  const ny = _heroOffsetStart.y + dy;
+  state.heroCardOffset = {x:nx, y:ny};
+  _heroDrag.style.transform = `translate(${nx}px, ${ny}px)`;
+}
+function heroDragEnd(){
+  if(!_heroDrag) return;
+  _heroDrag.classList.remove('dragging');
+  save();
+  document.removeEventListener('mousemove', heroDragMove);
+  document.removeEventListener('mouseup', heroDragEnd);
+  document.removeEventListener('touchmove', heroDragMove);
+  document.removeEventListener('touchend', heroDragEnd);
+  _heroDrag = null;
+}
+
 function renderHero(){
   const host = document.getElementById('heroCard');
   if(!host) return;
@@ -6699,8 +6882,10 @@ function renderHero(){
 
   const projName = state.project.name || 'Untitled Project';
   const cap = state.project.capacity ? `${state.project.capacity} ${state.project.capacityUnit||'MW'}` : '';
+  host.style.transform = `translate(${state.heroCardOffset.x}px, ${state.heroCardOffset.y}px)`;
 
   host.innerHTML = `
+    <div class="hero-drag-handle" title="Drag to move"><i class="bi bi-arrows-move"></i></div>
     <div class="hero-ring">
       <svg width="160" height="160" viewBox="0 0 160 160">
         <defs>
@@ -6871,6 +7056,7 @@ function makeChart(id, cfg){
 /* ---- Render Dashboard ---- */
 function renderDashboard(){
   renderHero();
+  initHeroCardDrag();
   renderTimeline();
   const c = chartCols();
   const overall = overallPct();
