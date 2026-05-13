@@ -26,6 +26,11 @@
   const cfg = window.HPMS_CONFIG || {};
   const ENABLED = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && cfg.workspaceCode);
 
+  // Cloud-only mode: app starts read-only until the first cloud pull succeeds.
+  // Writes are gated by `writesAllowed`. Offline / failed sync = read-only.
+  let writesAllowed = false;
+  let lastReadOnlyBanner = 0;
+
   // ─── Device ID (so we ignore our own remote echoes) ──────────────────────
   let DEVICE_ID = localStorage.getItem(DEVICE_KEY);
   if (!DEVICE_ID) {
@@ -52,6 +57,8 @@
     .hpms-sync-pill[data-state="synced"]   .dot{background:#10b981}
     .hpms-sync-pill[data-state="syncing"]  .dot{background:#22d3ee;animation:hpmsPulse 1.2s infinite}
     .hpms-sync-pill[data-state="offline"]  .dot{background:#94a3b8}
+    .hpms-sync-pill[data-state="readonly"] .dot{background:#f59e0b}
+    .hpms-sync-pill[data-state="readonly"]{border-color:#7c5a16;background:#241a08;color:#fbbf24}
     .hpms-sync-pill[data-state="error"]    .dot{background:#ef4444}
     .hpms-sync-pill[data-state="disabled"] .dot{background:#475569}
     @keyframes hpmsPulse{
@@ -67,6 +74,8 @@
       box-shadow:0 8px 24px -8px rgba(0,0,0,.4);
       animation:hpmsSlide .3s ease;
     }
+    .hpms-sync-banner.warn{background:#f59e0b;color:#1a1203}
+    .hpms-sync-banner.bad {background:#ef4444;color:#fff}
     @keyframes hpmsSlide{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}
   `;
   const styleEl = document.createElement('style');
@@ -85,13 +94,20 @@
     pill.querySelector('.lbl').textContent = label;
   }
 
-  function banner(msg, ms = 2500) {
-    if (cfg.showRemoteUpdateBanner === false) return;
+  function banner(msg, ms = 2500, tone = '') {
+    if (tone === '' && cfg.showRemoteUpdateBanner === false) return;
     const b = document.createElement('div');
-    b.className = 'hpms-sync-banner';
+    b.className = 'hpms-sync-banner' + (tone ? ' ' + tone : '');
     b.textContent = msg;
     document.body.appendChild(b);
     setTimeout(() => b.remove(), ms);
+  }
+
+  function flashReadOnly(reason) {
+    const now = Date.now();
+    if (now - lastReadOnlyBanner < 4000) return;
+    lastReadOnlyBanner = now;
+    banner('Read-only: ' + reason + ' — changes not saved', 3200, 'warn');
   }
 
   pill.addEventListener('click', () => {
@@ -127,8 +143,29 @@
     }
   });
 
+  // ─── Install write-blocker IMMEDIATELY ───────────────────────────────────
+  // Writes start disabled and only open up after a successful initial cloud
+  // pull. This guarantees the app is read-only until we know we're online
+  // AND in sync with the cloud. We hook setItem here (before init) so even
+  // the earliest save() call from the page is intercepted.
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function (key, value) {
+    if (key === STORAGE_KEY && !writesAllowed) {
+      flashReadOnly(navigator.onLine ? 'cloud not reachable' : 'offline');
+      return; // silently drop — last-known data stays visible
+    }
+    originalSetItem.call(this, key, value);
+    if (key === STORAGE_KEY) {
+      writeMeta({ localUpdatedAt: Date.now(), dirty: true });
+      schedulePush();
+    }
+  };
+
   if (!ENABLED) {
-    setStatus('disabled', 'Local only');
+    setStatus('readonly', 'Read-only (no cloud config)');
+    document.addEventListener('DOMContentLoaded', () => {
+      banner('Cloud not configured — app is read-only. Fill config.js to enable saving.', 5000, 'bad');
+    });
     return;
   }
 
@@ -162,23 +199,35 @@
     try {
       await loadSupabase();
     } catch (e) {
-      console.warn('[HPMS Sync] Supabase SDK unavailable — offline mode', e);
-      setStatus('offline', 'Offline');
+      console.warn('[HPMS Sync] Supabase SDK unavailable — read-only', e);
+      setStatus('readonly', 'Offline — read-only');
+      banner('Cannot reach Supabase SDK — read-only mode.', 3500, 'bad');
       return;
     }
     client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-    await pullFromCloud(false); // initial pull
-    subscribe();
-    hookLocalStorage();
+    if (!navigator.onLine) {
+      setStatus('readonly', 'Offline — read-only');
+      banner('Offline — read-only mode. Reconnect to save changes.', 3500, 'warn');
+      return;
+    }
 
-    setStatus(navigator.onLine ? 'synced' : 'offline', navigator.onLine ? 'Synced' : 'Offline');
+    const ok = await pullFromCloud(false); // initial pull — gates writesAllowed
+    if (!ok) {
+      setStatus('readonly', 'Cloud unreachable — read-only');
+      banner('Cloud unreachable — read-only mode. Changes will not save.', 3500, 'bad');
+      return;
+    }
+    subscribe();
+
+    writesAllowed = true;
+    setStatus('synced', 'Synced');
     flushQueueIfDirty();
   }
 
   // ─── Pull from cloud ─────────────────────────────────────────────────────
   async function pullFromCloud(showBanner) {
-    if (!client) return;
+    if (!client) return false;
     setStatus('syncing', 'Pulling…');
     try {
       const { data, error } = await client
@@ -189,10 +238,14 @@
 
       if (error) throw error;
       if (!data) {
-        // No cloud copy yet — push our local state as the initial seed
+        // No cloud copy yet — push our local state as the initial seed.
+        // Temporarily allow the seed push so the workspace row gets created.
         writeMeta({ lastPullAt: new Date().toISOString() });
+        const prev = writesAllowed;
+        writesAllowed = true;
         await pushToCloud(false);
-        return;
+        writesAllowed = prev;
+        return true;
       }
 
       const remoteAt = new Date(data.updated_at).getTime();
@@ -211,9 +264,12 @@
         writeMeta({ lastPullAt: new Date().toISOString() });
       }
       setStatus('synced', 'Synced');
+      return true;
     } catch (e) {
       console.warn('[HPMS Sync] Pull failed', e);
-      setStatus(navigator.onLine ? 'error' : 'offline', navigator.onLine ? 'Pull failed' : 'Offline');
+      writesAllowed = false;
+      setStatus(navigator.onLine ? 'readonly' : 'offline', navigator.onLine ? 'Cloud unreachable — read-only' : 'Offline — read-only');
+      return false;
     }
   }
 
@@ -227,8 +283,8 @@
   async function pushToCloud(force) {
     if (!client) return;
     if (!navigator.onLine) {
-      writeMeta({ dirty: true });
-      setStatus('offline', 'Offline (queued)');
+      writesAllowed = false;
+      setStatus('readonly', 'Offline — read-only');
       return;
     }
     setStatus('syncing', 'Pushing…');
@@ -260,7 +316,9 @@
     } catch (e) {
       console.warn('[HPMS Sync] Push failed', e);
       writeMeta({ dirty: true });
-      setStatus('error', 'Push failed (queued)');
+      writesAllowed = false;
+      setStatus('readonly', 'Push failed — read-only');
+      banner('Cloud push failed — switching to read-only', 3000, 'bad');
     }
   }
 
@@ -289,25 +347,23 @@
       .subscribe();
   }
 
-  // ─── Hook localStorage so saves auto-push ────────────────────────────────
-  const originalSetItem = localStorage.setItem;
-  function hookLocalStorage() {
-    localStorage.setItem = function (key, value) {
-      originalSetItem.call(this, key, value);
-      if (key === STORAGE_KEY) {
-        writeMeta({ localUpdatedAt: Date.now(), dirty: true });
-        schedulePush();
-      }
-    };
-  }
-
   // ─── Online/offline events ───────────────────────────────────────────────
-  window.addEventListener('online', () => {
+  window.addEventListener('online', async () => {
+    if (!client) return init();
     setStatus('syncing', 'Reconnecting…');
-    flushQueueIfDirty();
+    const ok = await pullFromCloud(false);
+    if (ok) {
+      writesAllowed = true;
+      setStatus('synced', 'Synced');
+      banner('Back online — saving enabled', 2200);
+      if (!channel) subscribe();
+      flushQueueIfDirty();
+    }
   });
   window.addEventListener('offline', () => {
-    setStatus('offline', 'Offline');
+    writesAllowed = false;
+    setStatus('readonly', 'Offline — read-only');
+    banner('Offline — read-only. Changes will not save.', 3000, 'warn');
   });
 
   function flushQueueIfDirty() {

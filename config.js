@@ -9,8 +9,8 @@
 */
 window.HPMS_CONFIG = {
   // From Supabase Dashboard → Project Settings → API
-  supabaseUrl: '',          // e.g. 'https://abcdefgh.supabase.co'
-  supabaseAnonKey: '',      // e.g. 'eyJhbGciOi...'
+  supabaseUrl: 'https://vhtsuoorhtrwujdmvpxh.supabase.co',
+  supabaseAnonKey: 'sb_publishable_k_kzSjkn2SpZ4nRp3LNwFA_K8zgFAod',
 
   // Workspace = the shared project. Anyone with this code sees the same data.
   // Keep it secret — share only with collaborators.
