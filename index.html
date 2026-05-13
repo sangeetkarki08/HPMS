@@ -2102,7 +2102,7 @@ const ROLE_DEFS = {
     perms:new Set([])  // view-only
   },
   manager: {name:'Project Manager', org:'Employer', avatar:'PM',
-    perms:new Set(['plan.approve','ipc.approve'])
+    perms:new Set(['plan.approve','ipc.approve','log.create','log.delete'])
   },
   engineer: {name:'Engineer / Contractor', org:'Contractor', avatar:'E',
     perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise'])
