@@ -205,8 +205,8 @@
         originalSetItem.call(localStorage, STORAGE_KEY, stateStr);
         writeMeta({ lastPullAt: new Date().toISOString(), localUpdatedAt: remoteAt, dirty: false });
         if (showBanner) banner('Pulled latest from cloud — reloading…');
-        // Reload so the app re-reads localStorage and re-renders everything
-        setTimeout(() => location.reload(), 600);
+        // Dispatch event to update UI without reload
+        window.dispatchEvent(new CustomEvent('hpmsDataUpdated'));
       } else {
         writeMeta({ lastPullAt: new Date().toISOString() });
       }

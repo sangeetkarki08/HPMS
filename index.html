@@ -70,7 +70,7 @@ h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;f
 .proj-meta{font-size:11.5px;color:var(--text-3);margin-top:2px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 
 .tabs-wrap{
-  display:flex;align-items:center;gap:6px;flex:1;justify-content:center;
+  display:flex;align-items:center;gap:6px;flex:1 1 auto;justify-content:flex-start;min-width:0;
 }
 .tabs-scroll-btn{
   background:var(--bg-2);border:1px solid var(--line);width:32px;height:32px;
@@ -79,8 +79,8 @@ h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;f
 }
 .tabs-scroll-btn:hover{background:var(--bg-3);color:var(--text-1)}
 .tabs{
-  display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none;
-  scroll-behavior:smooth;min-width:0;
+  display:flex;gap:2px;flex:1 1 auto;overflow-x:auto;scrollbar-width:none;
+  scroll-behavior:smooth;min-width:0;max-width:100%;
 }
 .tabs::-webkit-scrollbar{display:none}
 .tab-btn{
@@ -93,7 +93,7 @@ h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;f
 .tab-btn.active{background:var(--brand-soft);color:var(--brand)}
 .tab-btn i{font-size:14px}
 
-.actions{display:flex;gap:6px;flex:none}
+.actions{display:flex;gap:6px;flex:none;min-width:0}
 .btn-icon{
   width:36px;height:36px;border-radius:9px;border:1px solid var(--line);
   background:var(--bg-2);color:var(--text-2);cursor:pointer;
@@ -348,7 +348,7 @@ tbody tr:hover{background:var(--bg-2)}
   display:flex;align-items:center;gap:8px;
   background:var(--bg-2);border:1px solid var(--line);
   padding:5px 12px 5px 5px;border-radius:99px;cursor:pointer;
-  transition:all .15s;
+  min-width:0;transition:all .15s;
 }
 .role-pill:hover{border-color:var(--brand);background:var(--bg-3)}
 .role-avatar{
@@ -762,7 +762,9 @@ tbody tr:hover{background:var(--bg-2)}
 /* Mobile general */
 @media(max-width:760px){
   .topbar{flex-wrap:wrap;padding:10px 14px}
+  .tabs-wrap{width:100%;justify-content:flex-start}
   .tabs{order:3;width:100%;justify-content:flex-start}
+  .actions{order:2;width:100%;justify-content:flex-end;flex-wrap:wrap}
   main{padding:14px}
   .page-title{font-size:20px}
   .struct.is-child{margin-left:14px}
@@ -1203,7 +1205,7 @@ tbody tr:hover{background:var(--bg-2)}
     <div class="brand">
       <div class="logo">H</div>
       <div>
-        <div class="proj-name" id="projName">Untitled Project</div>
+        <div class="proj-name" id="projName">Mewa Khola Hydropower Project</div>
         <div class="proj-meta" id="projMeta">Configure in Setup</div>
       </div>
     </div>
@@ -1250,11 +1252,6 @@ tbody tr:hover{background:var(--bg-2)}
         <div>
           <h1 class="page-title"><i class="bi bi-gear-fill"></i> Project Setup</h1>
           <div class="page-sub">Define project info, structures and base quantities. Weightages compute automatically from cost amounts.</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-soft" onclick="loadTemplate()"><i class="bi bi-magic"></i> Load Hydropower Template</button>
-          <button class="btn btn-soft" onclick="loadMewaKholaTemplate()"><i class="bi bi-droplet-half"></i> Load Mewa Khola HEP (Civil + 5T Ropeway)</button>
-          <button class="btn btn-bad" onclick="resetAll()"><i class="bi bi-arrow-counterclockwise"></i> Reset All</button>
         </div>
       </div>
 
@@ -2115,11 +2112,11 @@ tbody tr:hover{background:var(--bg-2)}
 const STORAGE_KEY = 'hpms_data_v2';
 
 const DEFAULT = {
-  project:{name:'',capacity:'',capacityUnit:'MW',type:'Run-of-River',location:'',
-    employer:'',contractor:'',startDate:'',endDate:'',currency:'NPR',
-    contractNo:'', contractValue:0,
-    revStartDate:'', revEndDate:'', extReason:'',
-    midProject:false},
+  project:{name:'Mewa Khola Hydropower Project',capacity:'23',capacityUnit:'MW',type:'Run-of-River',location:'Taplejung, Province No. 1, Nepal',
+    employer:'High Himal-Jade Infra JV',contractor:'High Himalaya Hydro Construction Pvt. Ltd. (3HC)',startDate:'2026-04-10',endDate:'2028-06-01',currency:'NPR',
+    contractNo:'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01', contractValue:1380082100.12,
+    revStartDate:'2026-04-10', revEndDate:'2028-06-01', extReason:'',
+    midProject:true},
   structures:[],
   logs:[],
   ipcs:[],
@@ -2227,9 +2224,14 @@ function renderAuthControls(){
   const def = ROLE_DEFS[state.role] || ROLE_DEFS.guest;
   if(pill){
     pill.dataset.role = state.role;
+    pill.title = state.username ? 'Logged in as ' + state.username + ' — logout to switch account' : 'Switch role (login required)';
     document.getElementById('roleAvatar').textContent = def.avatar;
     document.getElementById('roleName').textContent = def.name;
     document.getElementById('roleOrg').textContent = state.username ? `Signed in as ${state.username}` : def.org;
+  }
+  if(loginBtn && logoutBtn){
+    loginBtn.disabled = !!state.username;
+    logoutBtn.disabled = !state.username;
   }
 }
 
@@ -2268,20 +2270,13 @@ function openRoleModal(){
     openLoginModal();
     return;
   }
-  document.querySelectorAll('.role-card').forEach(c=>c.classList.toggle('selected', c.dataset.role===state.role));
-  document.getElementById('modalRole').classList.add('show');
+  toast('To change account, please logout and login with another user.','bad');
 }
 function closeRoleModal(){ document.getElementById('modalRole').classList.remove('show'); }
 function selectRole(r){
-  if(!state.username){
-    toast('Please log in first','bad');
-    closeRoleModal();
-    return;
-  }
-  state.role = r;
-  save();
-  applyPermissions();
+  toast('Role switching is disabled after login. Use logout to switch users.','bad');
   closeRoleModal();
+  return;
   // Re-render currently active page so locks apply correctly
   const active = document.querySelector('.page.active');
   if(active){
@@ -2358,16 +2353,16 @@ const ACTIVITY_TEMPLATES = {
 /* ---- Hydropower template ---- */
 function loadTemplate(){
   if(state.structures.length && !confirm('Replace existing structures with hydropower template?')) return;
-  if(!state.project.name) state.project.name = 'New Hydropower Project';
-  if(!state.project.capacity) state.project.capacity = '25';
+  if(!state.project.name) state.project.name = 'Mewa Khola Hydropower Project';
+  if(!state.project.capacity) state.project.capacity = '23';
+  if(!state.project.location) state.project.location = 'Taplejung, Province No. 1, Nepal';
+  if(!state.project.employer) state.project.employer = 'High Himal-Jade Infra JV';
+  if(!state.project.contractor) state.project.contractor = 'High Himalaya Hydro Construction Pvt. Ltd. (3HC)';
   if(!state.project.startDate){
-    const today = new Date();
-    state.project.startDate = today.toISOString().slice(0,10);
+    state.project.startDate = '2026-04-10';
   }
   if(!state.project.endDate){
-    const end = new Date(state.project.startDate);
-    end.setMonth(end.getMonth()+24);
-    state.project.endDate = end.toISOString().slice(0,10);
+    state.project.endDate = '2028-06-01';
   }
   state.structures = [];
 
@@ -3736,9 +3731,9 @@ function calcIPC(ipc){
   const vatPct = ipc.vatPct!==undefined ? Number(ipc.vatPct) : 13;
   const retPct = ipc.retPct!==undefined ? Number(ipc.retPct) : 3;
   const tdsPct = ipc.tdsPct!==undefined ? Number(ipc.tdsPct) : 1.5;
-  const vat = net * vatPct/100;
+  const vat = net * vatPct/100;      // VAT on net amount after employer-supplied deduction
   const retention = net * retPct/100;
-  const tds = net * tdsPct/100;   // TDS on Net amount (after supplied items deduction)
+  const tds = net * tdsPct/100;     // TDS on net amount (after supplied items deduction)
   const totalDeduction = retention + tds;
   const totalWithVAT = net + vat;
   const payable = totalWithVAT - totalDeduction;
@@ -3815,7 +3810,7 @@ function recalcIPCModal(){
     <div class="ipc-calc-item"><div class="ipc-calc-label">Gross</div><div class="ipc-calc-value">${fmt(c.gross)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Empl. Items (-)</div><div class="ipc-calc-value deduct">${fmt(c.supplied)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Net Amount</div><div class="ipc-calc-value">${fmt(c.net)}</div></div>
-    <div class="ipc-calc-item"><div class="ipc-calc-label">VAT (+)</div><div class="ipc-calc-value add">${fmt(c.vat)}</div></div>
+    <div class="ipc-calc-item"><div class="ipc-calc-label">VAT on Net (+)</div><div class="ipc-calc-value add">${fmt(c.vat)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Total + VAT</div><div class="ipc-calc-value">${fmt(c.totalWithVAT)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Retention (-)</div><div class="ipc-calc-value deduct">${fmt(c.retention)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">TDS (-)</div><div class="ipc-calc-value deduct">${fmt(c.tds)}</div></div>
@@ -7433,12 +7428,77 @@ function toast(msg, kind='good'){
 }
 
 /* ---- Init ---- */
-renderProject();
-renderSetup();
-applyPermissions();
-if(!state.structures.length && !state.project.name){
-  setTimeout(()=>toast('Welcome — load a template or build structures to start','good'), 400);
+const shouldAutoLoadMewaKhola = !localStorage.getItem(STORAGE_KEY) || (
+  !state.structures.length && !state.ipcs.length && !state.logs.length && !state.milestones.length &&
+  state.project.contractNo === 'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01'
+);
+if(shouldAutoLoadMewaKhola){
+  loadMewaKholaTemplate();
+} else {
+  renderProject();
+  renderSetup();
+  applyPermissions();
+  if(!state.username){
+    setTimeout(openLoginModal, 120);
+  }
+  if(!state.structures.length && !state.project.name){
+    setTimeout(()=>toast('Welcome — load a template or build structures to start','good'), 400);
+  }
 }
+
+/* ---- Real-time updates ---- */
+window.addEventListener('hpmsDataUpdated', () => {
+  // Reload state from localStorage
+  state = (()=>{
+    try{
+      const raw=localStorage.getItem('hpms_data_v2');
+      if(raw){
+        const data = JSON.parse(raw);
+        data.ipcs = data.ipcs || [];
+        data.payment = data.payment || {advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
+        data.approvals = data.approvals || {};
+        data.milestones = data.milestones || [];
+        data.selectedLengthItems = data.selectedLengthItems || [];
+        data.resources = data.resources || [];
+        data.sites = data.sites || [];
+        data.resourceTemplates = data.resourceTemplates || {manpower:[],equipment:[]};
+        data.events = data.events || [];
+        data.weather = data.weather || [];
+        data.infrastructure = data.infrastructure || [];
+        data.infraFacilities = data.infraFacilities || null;
+        data.username = data.username || '';
+        data.role = data.role || 'guest';
+        data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
+        data.project = Object.assign({contractNo:'', contractValue:0, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
+        return data;
+      }
+    }catch(e){}
+    return JSON.parse(JSON.stringify(DEFAULT));
+  })();
+  // Re-render
+  renderProject();
+  renderSetup();
+  applyPermissions();
+  // Re-render active page
+  const active = document.querySelector('.page.active');
+  if(active){
+    const id = active.id.replace('page-','');
+    if(id==='setup') renderSetup();
+    if(id==='milestones') renderMilestones();
+    if(id==='planning') renderPlanning();
+    if(id==='log') renderLogForm();
+    if(id==='resources') renderResources();
+    if(id==='weather') renderWeather();
+    if(id==='infrastructure') renderInfrastructure();
+    if(id==='events') renderEvents();
+    if(id==='dashboard') renderDashboard();
+    if(id==='ipc') renderIPC();
+  }
+});
+
+window.addEventListener('storage', e => {
+  if(e.key === STORAGE_KEY) window.dispatchEvent(new Event('hpmsDataUpdated'));
+});
 </script>
 <script src="config.js"></script>
 <script src="app/cloud-sync.js"></script>
