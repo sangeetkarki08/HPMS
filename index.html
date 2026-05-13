@@ -1481,10 +1481,16 @@ tbody tr:hover{background:var(--bg-2)}
             <div class="field" style="grid-column:span 3"><label>Notes / Reason for shortfalls</label><input type="text" id="resNotes" placeholder="e.g. 5 workers absent due to local strike"></div>
           </div>
 
-          <h4 style="margin:8px 0 8px;font-size:13px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Manpower</h4>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <h4 style="margin:0;font-size:13px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Manpower</h4>
+            <button class="btn btn-soft btn-sm" onclick="addResourceTemplate('manpower')" data-perm="log.create"><i class="bi bi-plus-lg"></i> Add Manpower Resource</button>
+          </div>
           <div id="resManpowerHost"></div>
 
-          <h4 style="margin:18px 0 8px;font-size:13px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Equipment</h4>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 10px">
+            <h4 style="margin:0;font-size:13px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Equipment</h4>
+            <button class="btn btn-soft btn-sm" onclick="addResourceTemplate('equipment')" data-perm="log.create"><i class="bi bi-plus-lg"></i> Add Equipment Resource</button>
+          </div>
           <div id="resEquipmentHost"></div>
 
           <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
@@ -2077,6 +2083,7 @@ let state = (()=>{
       data.milestones = data.milestones || [];
       data.selectedLengthItems = data.selectedLengthItems || [];
       data.resources = data.resources || [];
+      data.resourceTemplates = data.resourceTemplates || {manpower:[],equipment:[]};
       data.events = data.events || [];
       data.weather = data.weather || [];
       data.infrastructure = data.infrastructure || [];
@@ -4323,6 +4330,44 @@ const EQUIPMENT_CATS = [
   'Mobile Crane','Truck-mounted Crane','Bulldozer','Roller','Concrete Pump','Shotcrete Robot','Bolt Grouting Machine'
 ];
 
+function getResourceTemplates(kind){
+  return state.resourceTemplates?.[kind] || [];
+}
+
+function getResourceCategories(kind){
+  const base = kind==='manpower' ? MANPOWER_CATS : EQUIPMENT_CATS;
+  return [...base, ...getResourceTemplates(kind)];
+}
+
+function addResourceTemplate(kind){
+  if(!hasPerm('log.create')){ toast('Insufficient permissions','bad'); return; }
+  state.resourceTemplates = state.resourceTemplates || {manpower:[],equipment:[]};
+  state.resourceTemplates[kind] = state.resourceTemplates[kind] || [];
+  state.resourceTemplates[kind].push({id:uid(), name:'New resource'});
+  save();
+  renderResources();
+}
+
+function deleteResourceTemplate(id, kind){
+  if(!hasPerm('log.delete')){ toast('Insufficient permissions','bad'); return; }
+  state.resourceTemplates = state.resourceTemplates || {manpower:[],equipment:[]};
+  state.resourceTemplates[kind] = (state.resourceTemplates[kind] || []).filter(item => item.id !== id);
+  save();
+  renderResources();
+}
+
+function updateResCategoryName(input){
+  const tr = input.closest('tr'); if(!tr) return;
+  const name = input.value.trim();
+  tr.dataset.cat = name;
+  const kind = tr.dataset.kind;
+  const id = input.dataset.customId;
+  if(kind && id){
+    const item = (state.resourceTemplates?.[kind] || []).find(i => i.id === id);
+    if(item){ item.name = name; save(); }
+  }
+}
+
 function renderResources(){
   // Set today's date as default
   const dateInput = document.getElementById('resDate');
@@ -4338,7 +4383,7 @@ function renderResources(){
     return sorted[0] || null;
   })();
 
-  const tableHtml = (cats, kind) => `
+  const tableHtml = (items, kind) => `
     <table class="res-table">
       <thead><tr>
         <th style="width:34%">Category</th>
@@ -4348,11 +4393,18 @@ function renderResources(){
         <th style="width:15%">Status</th>
       </tr></thead>
       <tbody>
-        ${cats.map((c, idx) => {
-          const prevReq = yesterday?.[kind]?.[c]?.required || '';
-          const prevAvail = yesterday?.[kind]?.[c]?.available || '';
-          return `<tr data-cat="${escapeHtml(c)}" data-kind="${kind}">
-            <td><span class="res-cat">${escapeHtml(c)}</span></td>
+        ${items.map(item => {
+          const isCustom = typeof item === 'object';
+          const catName = isCustom ? item.name : item;
+          const prevReq = yesterday?.[kind]?.[catName]?.required || '';
+          const prevAvail = yesterday?.[kind]?.[catName]?.available || '';
+          const categoryCell = isCustom ? `
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" class="res-category-input" placeholder="Resource" value="${escapeHtml(catName)}" data-field="category" data-custom-id="${item.id}" oninput="updateResCategoryName(this)">
+              <button class="btn btn-ghost btn-xs" type="button" onclick="deleteResourceTemplate('${item.id}','${kind}')" data-perm="log.delete" title="Remove resource"><i class="bi bi-trash"></i></button>
+            </div>` : `<span class="res-cat">${escapeHtml(catName)}</span>`;
+          return `<tr data-cat="${escapeHtml(catName)}" data-kind="${kind}"${isCustom ? ` data-custom="true" data-template-id="${item.id}"` : ''}>
+            <td>${categoryCell}</td>
             <td><input type="number" class="num" min="0" step="1" value="${prevReq}" data-field="required" oninput="updateResRow(this)"></td>
             <td><input type="number" class="num" min="0" step="1" value="${prevAvail}" data-field="available" oninput="updateResRow(this)"></td>
             <td class="num mono" data-field="shortfall" style="font-family:'JetBrains Mono';color:var(--text-3)">—</td>
@@ -4361,8 +4413,8 @@ function renderResources(){
         }).join('')}
       </tbody>
     </table>`;
-  if(mpHost) mpHost.innerHTML = tableHtml(MANPOWER_CATS, 'manpower');
-  if(eqHost) eqHost.innerHTML = tableHtml(EQUIPMENT_CATS, 'equipment');
+  if(mpHost) mpHost.innerHTML = tableHtml(getResourceCategories('manpower'), 'manpower');
+  if(eqHost) eqHost.innerHTML = tableHtml(getResourceCategories('equipment'), 'equipment');
 
   // Compute initial status
   document.querySelectorAll('.res-table tbody tr').forEach(tr=>{
@@ -4418,15 +4470,21 @@ function saveResourceLog(){
     equipment: {},
     ts: Date.now()
   };
+  const invalidRows = [];
   document.querySelectorAll('.res-table tbody tr').forEach(tr=>{
-    const cat = tr.dataset.cat;
+    const cat = (tr.dataset.cat || '').trim();
     const kind = tr.dataset.kind;
     const req = Number(tr.querySelector('input[data-field="required"]').value) || 0;
     const avail = Number(tr.querySelector('input[data-field="available"]').value) || 0;
+    if((req > 0 || avail > 0) && !cat){
+      invalidRows.push(tr);
+      return;
+    }
     if(req > 0 || avail > 0){
       log[kind][cat] = {required: req, available: avail};
     }
   });
+  if(invalidRows.length){ toast('Please name all filled resource rows','bad'); return; }
   // Replace any existing log on the same date+shift
   state.resources = state.resources.filter(r => !(r.date===date && r.shift===log.shift));
   state.resources.push(log);
