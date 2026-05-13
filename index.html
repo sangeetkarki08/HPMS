@@ -1481,6 +1481,12 @@ tbody tr:hover{background:var(--bg-2)}
             <div class="field" style="grid-column:span 3"><label>Notes / Reason for shortfalls</label><input type="text" id="resNotes" placeholder="e.g. 5 workers absent due to local strike"></div>
           </div>
 
+          <div class="form-grid" style="margin-bottom:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:end;gap:12px">
+            <div class="field"><label>Working Site</label><select id="resSite"></select></div>
+            <div class="field"><label>Add new site</label><input type="text" id="resSiteName" placeholder="Enter site name"></div>
+            <div style="display:flex;align-self:flex-end"><button class="btn btn-soft btn-sm" onclick="createResourceSite()" data-perm="log.create"><i class="bi bi-plus-lg"></i> Add Site</button></div>
+          </div>
+
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
             <h4 style="margin:0;font-size:13px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Manpower</h4>
             <button class="btn btn-soft btn-sm" onclick="addResourceTemplate('manpower')" data-perm="log.create"><i class="bi bi-plus-lg"></i> Add Manpower Resource</button>
@@ -1504,8 +1510,11 @@ tbody tr:hover{background:var(--bg-2)}
       <div class="card">
         <div class="card-head">
           <h3><i class="bi bi-list-task" style="margin-right:6px;color:var(--brand)"></i> Resource Log History</h3>
-          <div style="display:flex;gap:6px;align-items:center">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <input type="text" id="resHistorySearch" placeholder="Search…" oninput="renderResourceHistory()" style="width:160px;padding:5px 9px;font-size:12px">
+            <select id="resHistorySiteFilter" onchange="renderResourceHistory()" style="width:160px;padding:5px 9px;font-size:12px">
+              <option value="">All Sites</option>
+            </select>
             <button class="btn btn-ghost btn-sm" onclick="exportResourceLog()"><i class="bi bi-download"></i> Export</button>
           </div>
         </div>
@@ -2064,6 +2073,7 @@ const DEFAULT = {
   milestones:[], // { id, wbs, name, duration, plannedStart, plannedEnd, actualStart, actualEnd, status, notes }
   selectedLengthItems:[], // ["${structureId}:${itemId}"] - items chosen to track on dashboard length chart
   resources:[],   // daily manpower/equipment logs
+  sites:[],       // working sites for resource tracking
   events:[],      // delay events
   weather:[],     // daily weather logs
   infrastructure:[], // daily infra logs: {id,date,by,notes,facilities:{key:{status,hoursAvail,metricValue,detail}}}
@@ -2083,6 +2093,7 @@ let state = (()=>{
       data.milestones = data.milestones || [];
       data.selectedLengthItems = data.selectedLengthItems || [];
       data.resources = data.resources || [];
+      data.sites = data.sites || [];
       data.resourceTemplates = data.resourceTemplates || {manpower:[],equipment:[]};
       data.events = data.events || [];
       data.weather = data.weather || [];
@@ -4339,6 +4350,42 @@ function getResourceCategories(kind){
   return [...base, ...getResourceTemplates(kind)];
 }
 
+function getSiteById(id){
+  return (state.sites || []).find(s => s.id === id) || null;
+}
+
+function renderResourceSiteSelectors(){
+  const siteSelect = document.getElementById('resSite');
+  const historySelect = document.getElementById('resHistorySiteFilter');
+  const sites = state.sites || [];
+  const siteOptions = [`<option value="">General / no site</option>`, ...sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`)];
+  if(siteSelect) {
+    const current = siteSelect.value || '';
+    siteSelect.innerHTML = siteOptions.join('');
+    siteSelect.value = current || (sites[0]?.id || '');
+  }
+  if(historySelect) {
+    const current = historySelect.value || '';
+    historySelect.innerHTML = [`<option value="">All Sites</option>`, ...sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`) ].join('');
+    historySelect.value = current;
+  }
+}
+
+function createResourceSite(){
+  if(!hasPerm('log.create')){ toast('Insufficient permissions','bad'); return; }
+  const input = document.getElementById('resSiteName');
+  if(!input) return;
+  const name = input.value.trim();
+  if(!name){ toast('Enter a site name','bad'); return; }
+  state.sites = state.sites || [];
+  const id = uid();
+  state.sites.push({id, name});
+  save();
+  input.value = '';
+  renderResourceSiteSelectors();
+  renderResources();
+}
+
 function addResourceTemplate(kind){
   if(!hasPerm('log.create')){ toast('Insufficient permissions','bad'); return; }
   state.resourceTemplates = state.resourceTemplates || {manpower:[],equipment:[]};
@@ -4382,6 +4429,13 @@ function renderResources(){
     const sorted = [...state.resources].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     return sorted[0] || null;
   })();
+
+  const siteSelect = document.getElementById('resSite');
+  if(siteSelect && !siteSelect.value){
+    const firstSite = (state.sites || [])[0];
+    siteSelect.value = firstSite ? firstSite.id : '';
+  }
+  renderResourceSiteSelectors();
 
   const tableHtml = (items, kind) => `
     <table class="res-table">
@@ -4460,10 +4514,13 @@ function saveResourceLog(){
   if(!hasPerm('log.create')){ toast('Insufficient permissions to save resource log','bad'); return; }
   const date = document.getElementById('resDate').value;
   if(!date){ toast('Date required','bad'); return; }
+  const siteId = document.getElementById('resSite')?.value || '';
   const log = {
     id: uid(),
     date,
     shift: document.getElementById('resShift').value,
+    siteId,
+    siteName: getSiteById(siteId)?.name || 'General',
     by: document.getElementById('resBy').value.trim(),
     notes: document.getElementById('resNotes').value.trim(),
     manpower: {},
@@ -4496,7 +4553,8 @@ function saveResourceLog(){
 
 function renderResourceKPIs(){
   const host = document.getElementById('resKpiHost'); if(!host) return;
-  const logs = state.resources || [];
+  const historySite = document.getElementById('resHistorySiteFilter')?.value || '';
+  const logs = (state.resources || []).filter(l => !historySite || l.siteId === historySite);
   const today = new Date().toISOString().slice(0,10);
   const todayLog = logs.find(l => l.date === today);
   const last7 = logs.filter(l => {
@@ -4537,9 +4595,13 @@ function renderResourceKPIs(){
 function renderResourceHistory(){
   const host = document.getElementById('resHistoryHost'); if(!host) return;
   const q = (document.getElementById('resHistorySearch')?.value || '').toLowerCase();
+  const siteFilter = document.getElementById('resHistorySiteFilter')?.value || '';
   let logs = [...(state.resources||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(siteFilter){
+    logs = logs.filter(l => l.siteId === siteFilter);
+  }
   if(q){
-    logs = logs.filter(l => (l.date||'').includes(q) || (l.by||'').toLowerCase().includes(q) || (l.notes||'').toLowerCase().includes(q) || (l.shift||'').toLowerCase().includes(q));
+    logs = logs.filter(l => (l.date||'').includes(q) || (l.by||'').toLowerCase().includes(q) || (l.notes||'').toLowerCase().includes(q) || (l.shift||'').toLowerCase().includes(q) || (getSiteById(l.siteId)?.name||'').toLowerCase().includes(q));
   }
   if(!logs.length){
     host.innerHTML = `<div class="lp-empty"><i class="bi bi-list-task"></i>No resource logs yet. Fill in today's manpower &amp; equipment above to start tracking.</div>`;
@@ -4547,7 +4609,7 @@ function renderResourceHistory(){
   }
   host.innerHTML = `<table class="res-table">
     <thead><tr>
-      <th>Date</th><th>Shift</th><th>By</th>
+      <th>Date</th><th>Shift</th><th>Site</th><th>By</th>
       <th class="num">Manpower<br><span style="font-size:9px;font-weight:400">avail/req</span></th>
       <th class="num">Equipment<br><span style="font-size:9px;font-weight:400">avail/req</span></th>
       <th class="num">Shortfall</th>
@@ -4563,6 +4625,7 @@ function renderResourceHistory(){
       return `<tr>
         <td style="font-family:'JetBrains Mono';font-size:11.5px">${escapeHtml(l.date||'')}</td>
         <td><span style="font-size:11px;text-transform:capitalize">${escapeHtml(l.shift||'day')}</span></td>
+        <td style="font-size:11.5px">${escapeHtml(getSiteById(l.siteId)?.name || l.siteName || 'General')}</td>
         <td style="font-size:11.5px">${escapeHtml(l.by||'—')}</td>
         <td class="num mono">${mpA}/${mpR}</td>
         <td class="num mono">${eqA}/${eqR}</td>
@@ -4592,10 +4655,11 @@ function exportResourceLog(){
     Object.keys(l.equipment||{}).forEach(c=>allCats.add('EQ:'+c));
   });
   const cats = [...allCats].sort();
-  const headers = ['Date','Shift','By','Notes', ...cats.map(c=>`${c} (Req)`).flat(), ...cats.map(c=>`${c} (Avail)`).flat()];
+  const headers = ['Date','Shift','Site','By','Notes', ...cats.map(c=>`${c} (Req)`).flat(), ...cats.map(c=>`${c} (Avail)`).flat()];
   const rows = [headers.join(',')];
   state.resources.forEach(l=>{
-    const row = [l.date, l.shift, `"${(l.by||'').replace(/"/g,'""')}"`, `"${(l.notes||'').replace(/"/g,'""')}"`];
+    const siteLabel = getSiteById(l.siteId)?.name || l.siteName || 'General';
+    const row = [l.date, l.shift, `"${siteLabel.replace(/"/g,'""')}"`, `"${(l.by||'').replace(/"/g,'""')}"`, `"${(l.notes||'').replace(/"/g,'""')}"`];
     cats.forEach(c=>{
       const [k,name] = c.split(':');
       const obj = (k==='MP' ? l.manpower : l.equipment)?.[name];
