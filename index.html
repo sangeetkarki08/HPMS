@@ -192,7 +192,34 @@ tbody tr:hover{background:var(--bg-2)}
 .pill-mut{background:var(--bg-3);color:var(--text-3)}
 
 /* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.kpi-grid > .kpi{min-width:0}
+
+/* Project Milestones list */
+.pm-list{display:flex;flex-direction:column;gap:8px}
+.pm-empty{padding:30px;text-align:center;color:var(--text-3);font-size:13px;border:1px dashed var(--line);border-radius:10px}
+.pm-row{display:grid;grid-template-columns:32px 1fr 130px 110px 80px;gap:12px;align-items:center;
+  padding:10px 14px;background:var(--bg-1);border:1px solid var(--line);border-radius:10px;transition:background .12s}
+.pm-row:hover{background:var(--bg-2)}
+.pm-row.achieved{background:var(--good-soft);border-color:var(--good)}
+.pm-row.overdue{background:var(--bad-soft);border-color:var(--bad)}
+.pm-icon{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:14px;color:#fff;background:var(--text-3)}
+.pm-row.achieved .pm-icon{background:var(--good)}
+.pm-row.overdue .pm-icon{background:var(--bad)}
+.pm-row.upcoming .pm-icon{background:var(--brand)}
+.pm-name{font-weight:600;color:var(--text-1);font-size:13.5px}
+.pm-notes{font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4}
+.pm-date{font-family:'JetBrains Mono';font-size:12px;font-weight:600;color:var(--text-2);text-align:right;white-space:nowrap}
+.pm-date small{display:block;font-size:10px;color:var(--text-3);font-weight:500}
+.pm-badge{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;text-align:center}
+.pm-badge.achieved{background:var(--good-soft);color:var(--good)}
+.pm-badge.upcoming{background:var(--brand-soft);color:var(--brand)}
+.pm-badge.overdue{background:var(--bad-soft);color:var(--bad)}
+.pm-row .pm-actions{display:flex;gap:4px;justify-content:flex-end}
+@media(max-width:720px){
+  .pm-row{grid-template-columns:30px 1fr 90px;row-gap:6px;column-gap:8px;padding:10px}
+  .pm-row .pm-badge,.pm-row .pm-actions{grid-column:2/-1;justify-self:start}
+}
 
 /* Cost Breakdown */
 .cost-breakdown{display:flex;flex-direction:column;gap:16px}
@@ -246,12 +273,15 @@ tbody tr:hover{background:var(--bg-2)}
 .kpi.kpi-info::before{background:var(--accent)}
 .kpi.kpi-warn::before{background:var(--warn)}
 .kpi.kpi-bad::before{background:var(--bad)}
-.kpi-label{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;padding-right:32px}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;padding-right:32px;white-space:normal;overflow-wrap:break-word}
 .kpi-value{
   font-family:'JetBrains Mono',monospace;font-weight:700;
-  font-size:30px;color:var(--text-1);margin-top:4px;letter-spacing:-.02em;line-height:1.05;
+  font-size:clamp(17px, 2.3vw, 28px);
+  color:var(--text-1);margin-top:4px;letter-spacing:-.02em;line-height:1.1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
 }
-.kpi-sub{font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.3}
+.kpi-value > span{font-size:.55em;font-weight:600}
+.kpi-sub{font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.3;white-space:normal;overflow-wrap:break-word}
 .kpi-sub.up{color:var(--good)}
 .kpi-sub.down{color:var(--bad)}
 
@@ -1418,6 +1448,17 @@ body.auth-locked{overflow:hidden;}
         </div>
         <div class="card-body" id="milestonesHost"></div>
       </div>
+
+      <div class="card" id="projectMilestonesCard" style="margin-top:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-flag-fill" style="margin-right:6px;color:var(--warn)"></i> Project Milestones</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:11px;color:var(--text-3)">key project events — also shown on dashboard</span>
+            <button class="btn btn-primary btn-sm" onclick="addProjectMilestone()"><i class="bi bi-plus-lg"></i> Add Milestone</button>
+          </div>
+        </div>
+        <div class="card-body" id="projectMilestonesHost"></div>
+      </div>
     </section>
 
     <!-- ===== PLANNING ===== -->
@@ -1498,7 +1539,7 @@ body.auth-locked{overflow:hidden;}
         <div class="card-body" style="padding:0;overflow-x:auto">
           <table id="ipcTable">
             <thead><tr>
-              <th>IPC</th><th>Period</th><th class="num">Gross</th><th class="num">Empl. Items</th>
+              <th>IPC</th><th>Period</th><th class="num">Amt Incl. VAT</th><th class="num">Empl. Items</th>
               <th class="num">Net Amount</th><th class="num">VAT</th><th class="num">Retention</th>
               <th class="num">TDS</th><th class="num">Payable</th><th>Status</th><th></th>
             </tr></thead>
@@ -1817,6 +1858,15 @@ body.auth-locked{overflow:hidden;}
 
       <div class="kpi-grid" id="kpiHost"></div>
 
+      <!-- Project Milestones (from Scheduled tab) -->
+      <div class="card" style="margin-bottom:18px" id="dashboardMilestonesCard">
+        <div class="card-head">
+          <h3><i class="bi bi-flag-fill" style="margin-right:6px;color:var(--warn)"></i> Project Milestones</h3>
+          <span style="font-size:11px;color:var(--text-3)">key project events — manage in Scheduled tab</span>
+        </div>
+        <div class="card-body" id="dashboardMilestonesHost"></div>
+      </div>
+
       <!-- Cost Breakdown (linked to daily logs) -->
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
@@ -2069,7 +2119,7 @@ body.auth-locked{overflow:hidden;}
         <div class="field"><label>Period From</label><input type="date" id="ipcPeriodFrom"></div>
         <div class="field"><label>Period To</label><input type="date" id="ipcPeriodTo"></div>
         <div class="field"><label>Submitted Date</label><input type="date" id="ipcSubmitted"></div>
-        <div class="field"><label>Final Payment Amount (Gross)</label><input type="number" id="ipcGross" step="0.01" oninput="recalcIPCModal()" placeholder="0.00"></div>
+        <div class="field"><label>Final Payment Amount (Excl. VAT)</label><input type="number" id="ipcGross" step="0.01" oninput="recalcIPCModal()" placeholder="0.00"></div>
       </div>
       <h4 style="margin-top:20px;margin-bottom:8px;font-size:13px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em">Employer Supplied Items (deductions)</h4>
       <div class="form-grid">
@@ -2210,6 +2260,32 @@ body.auth-locked{overflow:hidden;}
   </div>
 </div>
 
+<div class="modal-bd" id="modalProjMilestone">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <h3 id="pmModalTitle"><i class="bi bi-flag-fill" style="margin-right:6px;color:var(--warn)"></i> Add Project Milestone</h3>
+      <button class="btn-icon" onclick="closeProjectMilestoneModal()" style="width:30px;height:30px"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label>Milestone Name</label><input type="text" id="pmName" placeholder="e.g. NTP issued · Ground breaking · River diversion · Commissioning"></div>
+        <div class="field"><label>Planned Date</label><input type="date" id="pmDate"></div>
+        <div class="field"><label>Achieved Date (optional)</label><input type="date" id="pmAchievedDate"></div>
+        <div class="field" style="grid-column:1/-1;display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="pmAchieved" style="width:18px;height:18px;accent-color:var(--good)">
+          <label for="pmAchieved" style="cursor:pointer;font-weight:600">Achieved</label>
+        </div>
+        <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea id="pmNotes" rows="2" placeholder="optional notes"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-bad" id="pmDeleteBtn" onclick="deleteProjectMilestone()" style="margin-right:auto;display:none"><i class="bi bi-trash"></i> Delete</button>
+      <button class="btn btn-ghost" onclick="closeProjectMilestoneModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProjectMilestone()"><i class="bi bi-check2"></i> Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-host" id="toastHost"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -2233,6 +2309,7 @@ const DEFAULT = {
   payment:{advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0},
   approvals:{},   // { 'weekly:2025-W01': {by, when, locked:true}, 'monthly:2025-01':{...} }
   milestones:[], // { id, wbs, name, duration, plannedStart, plannedEnd, actualStart, actualEnd, status, notes }
+  projectMilestones:[], // { id, name, date, achieved, achievedDate, notes } — key project milestones shown on dashboard
   selectedLengthItems:[], // ["${structureId}:${itemId}"] - items chosen to track on dashboard length chart
   resources:[],   // daily manpower/equipment logs
   sites:[],       // working sites for resource tracking
@@ -2255,6 +2332,7 @@ let state = (()=>{
       data.payment = data.payment || {advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
       data.approvals = data.approvals || {};
       data.milestones = data.milestones || [];
+      data.projectMilestones = data.projectMilestones || [];
       data.selectedLengthItems = data.selectedLengthItems || [];
       data.resources = data.resources || [];
       data.sites = data.sites || [];
@@ -3868,11 +3946,11 @@ function recalcIPCModal(){
   };
   const c = calcIPC(tmp);
   document.getElementById('ipcCalcBox').innerHTML = `
-    <div class="ipc-calc-item"><div class="ipc-calc-label">Gross</div><div class="ipc-calc-value">${fmt(c.gross)}</div></div>
+    <div class="ipc-calc-item"><div class="ipc-calc-label">Amount (Excl. VAT)</div><div class="ipc-calc-value">${fmt(c.gross)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Empl. Items (-)</div><div class="ipc-calc-value deduct">${fmt(c.supplied)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Net Amount</div><div class="ipc-calc-value">${fmt(c.net)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">VAT on Net (+)</div><div class="ipc-calc-value add">${fmt(c.vat)}</div></div>
-    <div class="ipc-calc-item"><div class="ipc-calc-label">Total + VAT</div><div class="ipc-calc-value">${fmt(c.totalWithVAT)}</div></div>
+    <div class="ipc-calc-item"><div class="ipc-calc-label">Amount Incl. VAT</div><div class="ipc-calc-value total">${fmt(c.totalWithVAT)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Retention (-)</div><div class="ipc-calc-value deduct">${fmt(c.retention)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">TDS (-)</div><div class="ipc-calc-value deduct">${fmt(c.tds)}</div></div>
     <div class="ipc-calc-item"><div class="ipc-calc-label">Payable</div><div class="ipc-calc-value total">${fmt(c.payable)}</div></div>`;
@@ -3938,13 +4016,13 @@ function renderIPCKpis(){
   const ipcs = state.ipcs.slice();
   const approved = ipcs.filter(i=>i.status==='approved' || i.status==='paid');
   const paid = ipcs.filter(i=>i.status==='paid');
-  const totalGross = approved.reduce((s,i)=>s+(Number(i.gross)||0), 0);
+  const totalInclVAT = approved.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
   const totalNet = approved.reduce((s,i)=>{const c=calcIPC(i); return s+c.net;}, 0);
   const totalPayable = approved.reduce((s,i)=>{const c=calcIPC(i); return s+c.payable;}, 0);
   const totalPaid = paid.reduce((s,i)=>{const c=calcIPC(i); return s+c.payable;}, 0);
   const totalRetention = approved.reduce((s,i)=>{const c=calcIPC(i); return s+c.retention;}, 0);
   const contractValue = Number(state.project.contractValue)||0;
-  const billedPct = contractValue ? (totalGross/contractValue)*100 : 0;
+  const billedPct = contractValue ? (totalInclVAT/contractValue)*100 : 0;
   const advBal = (Number(state.payment.advanceAmount)||0) - (Number(state.payment.advanceRecovered)||0);
 
   host.innerHTML = `
@@ -3953,8 +4031,8 @@ function renderIPCKpis(){
       <div class="kpi-value">${ipcs.length}<span style="font-size:14px;color:var(--text-3)"> · ${approved.length} approved</span></div>
       <div class="kpi-sub">${paid.length} paid</div></div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
-      <div class="kpi-label">Gross Billed (Approved)</div>
-      <div class="kpi-value">${fmt(totalGross)}</div>
+      <div class="kpi-label">Billed (Incl. VAT)</div>
+      <div class="kpi-value">${fmt(totalInclVAT)}</div>
       <div class="kpi-sub">${ccy()} · ${fmtPct(billedPct)} of contract</div></div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
       <div class="kpi-label">Total Paid</div>
@@ -4007,7 +4085,7 @@ function renderIPC(){
     return `<tr class="ipc-row" onclick="editIPC('${ipc.id}')">
       <td><strong>${escapeHtml(ipc.no||'')}</strong></td>
       <td style="font-size:11px;color:var(--text-3)">${period}</td>
-      <td class="num">${fmt(c.gross)}</td>
+      <td class="num"><strong>${fmt(c.totalWithVAT)}</strong></td>
       <td class="num" style="color:var(--bad)">${c.supplied?'-'+fmt(c.supplied):'—'}</td>
       <td class="num"><strong>${fmt(c.net)}</strong></td>
       <td class="num" style="color:var(--good)">+${fmt(c.vat)}</td>
@@ -4024,9 +4102,10 @@ function renderIPC(){
       ['gross','supplied','net','vat','retention','tds','payable'].forEach(k=> acc[k] = (acc[k]||0)+c[k]);
       return acc;
     }, {});
+    const totalInclVAT = totals.net + totals.vat;
     return `<tr style="background:var(--brand-soft);font-weight:700">
       <td><strong>TOTAL</strong></td><td>${sorted.length} IPCs</td>
-      <td class="num"><strong>${fmt(totals.gross)}</strong></td>
+      <td class="num"><strong>${fmt(totalInclVAT)}</strong></td>
       <td class="num" style="color:var(--bad)">-${fmt(totals.supplied)}</td>
       <td class="num"><strong>${fmt(totals.net)}</strong></td>
       <td class="num" style="color:var(--good)">+${fmt(totals.vat)}</td>
@@ -4049,21 +4128,21 @@ function renderIPCCharts(){
     return an-bn;
   });
   const labels = ipcs.map(i=>i.no);
-  const grossArr = ipcs.map(i=>calcIPC(i).gross);
+  const inclVATArr = ipcs.map(i=>calcIPC(i).totalWithVAT);
   const payableArr = ipcs.map(i=>calcIPC(i).payable);
 
   if(document.getElementById('chartIPC')){
     makeChart('chartIPC', {
       type:'bar',
       data:{labels: labels.length?labels:['—'], datasets:[
-        {label:'Gross', data:grossArr.length?grossArr:[0], backgroundColor:c.accent+'88', borderRadius:4},
+        {label:'Amt Incl. VAT', data:inclVATArr.length?inclVATArr:[0], backgroundColor:c.accent+'88', borderRadius:4},
         {label:'Payable', data:payableArr.length?payableArr:[0], backgroundColor:c.brand, borderRadius:4}
       ]},
       options: chartBase()
     });
   }
   // Cumulative billing vs contract
-  let cum = 0; const cumData = grossArr.map(v=> cum += v);
+  let cum = 0; const cumData = inclVATArr.map(v=> cum += v);
   const contractValue = Number(state.project.contractValue)||0;
   if(document.getElementById('chartBilling')){
     makeChart('chartBilling', {
@@ -4079,6 +4158,7 @@ function renderIPCCharts(){
 
 /* ---- Milestones (Construction Schedule) ---- */
 function renderMilestones(){
+  renderProjectMilestones();
   const host = document.getElementById('milestonesHost');
   const kpiHost = document.getElementById('msKpiHost');
   if(!host) return;
@@ -4387,6 +4467,127 @@ function exportMilestones(){
   a.click(); URL.revokeObjectURL(url);
   toast('Milestones exported','good');
 }
+
+/* ============================================================
+   PROJECT MILESTONES — key project events (separate from schedule)
+   ============================================================ */
+function renderProjectMilestones(){
+  const host = document.getElementById('projectMilestonesHost');
+  if(!host) return;
+  const pms = (state.projectMilestones || []).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!pms.length){
+    host.innerHTML = `<div class="pm-empty">
+      <i class="bi bi-flag" style="font-size:28px;display:block;margin-bottom:10px;opacity:.4"></i>
+      <div style="font-weight:700;color:var(--text-2);margin-bottom:4px">No project milestones yet</div>
+      <div>Add key project events (NTP, ground-breaking, river diversion, commissioning, etc.) — they will also appear on the Dashboard.</div>
+    </div>`;
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  host.innerHTML = `<div class="pm-list">${pms.map(m=>{
+    const achieved = !!m.achieved;
+    const overdue = !achieved && m.date && m.date < today;
+    const cls = achieved ? 'achieved' : (overdue ? 'overdue' : 'upcoming');
+    const icon = achieved ? 'check-circle-fill' : (overdue ? 'exclamation-triangle-fill' : 'flag');
+    const badge = achieved ? 'Achieved' : (overdue ? 'Overdue' : 'Upcoming');
+    return `<div class="pm-row ${cls}">
+      <div class="pm-icon"><i class="bi bi-${icon}"></i></div>
+      <div>
+        <div class="pm-name">${escapeHtml(m.name||'(unnamed)')}</div>
+        ${m.notes?`<div class="pm-notes">${escapeHtml(m.notes)}</div>`:''}
+      </div>
+      <div class="pm-date">${m.date||'—'}
+        ${achieved && m.achievedDate ? `<small>achieved ${escapeHtml(m.achievedDate)}</small>` : ''}
+      </div>
+      <div class="pm-badge ${cls}">${badge}</div>
+      <div class="pm-actions">
+        <button class="ms-action-btn" onclick="editProjectMilestone('${m.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+        <button class="ms-action-btn delete" onclick="deleteProjectMilestoneInline('${m.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+  applyPermissions();
+}
+
+let editingProjectMilestone = null;
+function addProjectMilestone(){
+  editingProjectMilestone = null;
+  document.getElementById('pmModalTitle').innerHTML = '<i class="bi bi-flag-fill" style="margin-right:6px;color:var(--warn)"></i> Add Project Milestone';
+  document.getElementById('pmDeleteBtn').style.display = 'none';
+  document.getElementById('pmName').value = '';
+  document.getElementById('pmDate').value = '';
+  document.getElementById('pmAchievedDate').value = '';
+  document.getElementById('pmAchieved').checked = false;
+  document.getElementById('pmNotes').value = '';
+  document.getElementById('modalProjMilestone').classList.add('show');
+}
+
+function editProjectMilestone(id){
+  const m = (state.projectMilestones||[]).find(x=>x.id===id);
+  if(!m) return;
+  editingProjectMilestone = id;
+  document.getElementById('pmModalTitle').innerHTML = `<i class="bi bi-flag-fill" style="margin-right:6px;color:var(--warn)"></i> Edit Milestone`;
+  document.getElementById('pmDeleteBtn').style.display = 'inline-flex';
+  document.getElementById('pmName').value = m.name||'';
+  document.getElementById('pmDate').value = m.date||'';
+  document.getElementById('pmAchievedDate').value = m.achievedDate||'';
+  document.getElementById('pmAchieved').checked = !!m.achieved;
+  document.getElementById('pmNotes').value = m.notes||'';
+  document.getElementById('modalProjMilestone').classList.add('show');
+}
+
+function saveProjectMilestone(){
+  const data = {
+    name: document.getElementById('pmName').value.trim(),
+    date: document.getElementById('pmDate').value,
+    achieved: document.getElementById('pmAchieved').checked,
+    achievedDate: document.getElementById('pmAchievedDate').value,
+    notes: document.getElementById('pmNotes').value.trim()
+  };
+  if(!data.name){ toast('Milestone name is required','bad'); return; }
+  if(data.achieved && !data.achievedDate) data.achievedDate = new Date().toISOString().slice(0,10);
+  if(!state.projectMilestones) state.projectMilestones = [];
+  if(editingProjectMilestone){
+    const idx = state.projectMilestones.findIndex(x=>x.id===editingProjectMilestone);
+    if(idx>=0) state.projectMilestones[idx] = {...state.projectMilestones[idx], ...data};
+  } else {
+    data.id = uid();
+    state.projectMilestones.push(data);
+  }
+  save();
+  closeProjectMilestoneModal();
+  renderProjectMilestones();
+  if(document.getElementById('page-dashboard').classList.contains('active')) renderDashboardMilestones();
+  toast(editingProjectMilestone?'Milestone updated':'Milestone added','good');
+}
+
+function deleteProjectMilestone(){
+  if(!editingProjectMilestone) return;
+  if(!confirm('Delete this project milestone?')) return;
+  state.projectMilestones = (state.projectMilestones||[]).filter(x=>x.id!==editingProjectMilestone);
+  save();
+  closeProjectMilestoneModal();
+  renderProjectMilestones();
+  if(document.getElementById('page-dashboard').classList.contains('active')) renderDashboardMilestones();
+  toast('Milestone deleted','good');
+}
+
+function deleteProjectMilestoneInline(id){
+  if(!confirm('Delete this project milestone?')) return;
+  state.projectMilestones = (state.projectMilestones||[]).filter(x=>x.id!==id);
+  save();
+  renderProjectMilestones();
+  if(document.getElementById('page-dashboard').classList.contains('active')) renderDashboardMilestones();
+  toast('Milestone deleted','good');
+}
+
+function closeProjectMilestoneModal(){
+  document.getElementById('modalProjMilestone').classList.remove('show');
+  editingProjectMilestone = null;
+}
+document.getElementById('modalProjMilestone').addEventListener('click', e=>{
+  if(e.target.id==='modalProjMilestone') closeProjectMilestoneModal();
+});
 
 /* ---- Length-wise Items Custom Tracker ---- */
 const LENGTH_UNITS = ['m','rm','RM','Rm']; // linear units recognized
@@ -7191,11 +7392,46 @@ function makeChart(id, cfg){
   charts[id] = new Chart(el, cfg);
 }
 
+/* Compact dashboard view of Project Milestones (read-only, links to Scheduled tab) */
+function renderDashboardMilestones(){
+  const host = document.getElementById('dashboardMilestonesHost');
+  if(!host) return;
+  const pms = (state.projectMilestones || []).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!pms.length){
+    host.innerHTML = `<div class="pm-empty">
+      <i class="bi bi-flag" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4"></i>
+      <div>No project milestones yet — add them from the <a href="#" onclick="document.querySelector('[data-page=milestones]').click();return false" style="color:var(--brand);font-weight:600">Scheduled</a> tab.</div>
+    </div>`;
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  host.innerHTML = `<div class="pm-list">${pms.map(m=>{
+    const achieved = !!m.achieved;
+    const overdue = !achieved && m.date && m.date < today;
+    const cls = achieved ? 'achieved' : (overdue ? 'overdue' : 'upcoming');
+    const icon = achieved ? 'check-circle-fill' : (overdue ? 'exclamation-triangle-fill' : 'flag');
+    const badge = achieved ? 'Achieved' : (overdue ? 'Overdue' : 'Upcoming');
+    return `<div class="pm-row ${cls}">
+      <div class="pm-icon"><i class="bi bi-${icon}"></i></div>
+      <div>
+        <div class="pm-name">${escapeHtml(m.name||'(unnamed)')}</div>
+        ${m.notes?`<div class="pm-notes">${escapeHtml(m.notes)}</div>`:''}
+      </div>
+      <div class="pm-date">${m.date||'—'}
+        ${achieved && m.achievedDate ? `<small>achieved ${escapeHtml(m.achievedDate)}</small>` : ''}
+      </div>
+      <div class="pm-badge ${cls}">${badge}</div>
+      <div></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
 /* ---- Render Dashboard ---- */
 function renderDashboard(){
   renderHero();
   initHeroCardDrag();
   renderTimeline();
+  renderDashboardMilestones();
   const c = chartCols();
   const overall = overallPct();
   const totalAmt = projectAmount();
@@ -7211,6 +7447,12 @@ function renderDashboard(){
 
   const totalLogs = state.logs.length;
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
+
+  // Financial progress (Billed Incl. VAT from approved IPCs) — matches IPC tab
+  const approvedIPCs = (state.ipcs||[]).filter(i=>i.status==='approved' || i.status==='paid');
+  const totalInclVAT = approvedIPCs.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
+  const contractValue = Number(state.project.contractValue)||0;
+  const finPct = contractValue ? (totalInclVAT/contractValue)*100 : 0;
 
   document.getElementById('kpiHost').innerHTML = `
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-speedometer2"></i></div>
@@ -7257,6 +7499,17 @@ function renderDashboard(){
       <div class="kpi-label">This Month</div>
       <div class="kpi-value">${fmt(monthEarned)}</div>
       <div class="kpi-sub">${ccy()} this month</div>
+    </div>
+    <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
+      <div class="kpi-label">Billed (Incl. VAT)</div>
+      <div class="kpi-value">${fmt(totalInclVAT)}</div>
+      <div class="kpi-sub">${ccy()} · ${approvedIPCs.length} approved IPCs</div>
+    </div>
+    <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-percent"></i></div>
+      <div class="kpi-label">Financial Progress</div>
+      <div class="kpi-value">${fmtPct(finPct)}</div>
+      <div class="bar bar-good" style="margin-top:6px"><i style="width:${Math.min(100,finPct)}%"></i></div>
+      <div class="kpi-sub">billed incl. VAT vs contract</div>
     </div>`;
 
   // S-curve (cumulative %)
@@ -8021,6 +8274,7 @@ window.addEventListener('hpmsDataUpdated', () => {
         data.payment = data.payment || {advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
         data.approvals = data.approvals || {};
         data.milestones = data.milestones || [];
+        data.projectMilestones = data.projectMilestones || [];
         data.selectedLengthItems = data.selectedLengthItems || [];
         data.resources = data.resources || [];
         data.sites = data.sites || [];
