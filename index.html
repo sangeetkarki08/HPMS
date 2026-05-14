@@ -2491,6 +2491,15 @@ const uid = ()=>'i'+Math.random().toString(36).slice(2,9)+Date.now().toString(36
 const fmt = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0'; return Math.round(n).toLocaleString(); };
 const fmt2 = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0.00'; return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };
 const fmtPct = n=>{ if(!isFinite(n)) return '0.0%'; return n.toFixed(1)+'%'; };
+/* Compact Indian/Nepali currency formatter — keeps KPI tiles narrow.
+   >= 1 Cr → "X.XX Cr", >= 1 L → "X.XX L", else raw thousands separator. */
+const fmtCr = n=>{
+  if(!isFinite(n)||n===null||n===undefined) return '0';
+  const abs = Math.abs(n);
+  if(abs >= 1e7) return (n/1e7).toFixed(2) + ' Cr';
+  if(abs >= 1e5) return (n/1e5).toFixed(2) + ' L';
+  return Math.round(n).toLocaleString();
+};
 const ccy = ()=>state.project.currency || 'NPR';
 
 /* ---- Activity templates ---- */
@@ -2856,7 +2865,7 @@ function renderMidProject(){
       <div class="mid-sum-item"><div class="mid-sum-label">Activities</div>
         <div class="mid-sum-value">${totalActivities}</div></div>
       <div class="mid-sum-item"><div class="mid-sum-label">Already Earned (${ccy()})</div>
-        <div class="mid-sum-value" style="color:var(--good)">${fmt(totalEarned)}</div>
+        <div class="mid-sum-value" style="color:var(--good)">${fmtCr(totalEarned)}</div>
         <div style="font-size:10.5px;color:var(--text-3);margin-top:2px">matches dashboard earned value</div></div>
       <div class="mid-sum-item" style="display:flex;align-items:flex-end;gap:8px">
         <button class="btn btn-ghost btn-sm" onclick="resetAllStarting()"><i class="bi bi-arrow-counterclockwise"></i> Reset All</button>
@@ -2897,7 +2906,7 @@ function renderMidProject(){
                       class="mid-input">
                   </td>
                   <td class="num"><span class="mid-num-readonly">${fmt(i.rate)}</span></td>
-                  <td class="num"><span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmt(earnedAmt)}</span></td>
+                  <td class="num"><span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmtCr(earnedAmt)}</span></td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -2930,7 +2939,7 @@ function updateStartingQty(sid, iid, val){
     const amtCell = tr.children[4]; // Activity | Unit | Complete Qty | Rate | Amount
     if(amtCell){
       const earned = (Number(i.startingQty)||0) * (Number(i.rate)||0);
-      amtCell.innerHTML = `<span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmt(earned)}</span>`;
+      amtCell.innerHTML = `<span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmtCr(earned)}</span>`;
     }
   }
   // Debounce: update the summary "Already Earned" total
@@ -2946,7 +2955,7 @@ function updateStartingQty(sid, iid, val){
     if(summary){
       const valEls = summary.querySelectorAll('.mid-sum-item .mid-sum-value');
       // Order: Activities, Already Earned
-      if(valEls[1]) valEls[1].textContent = fmt(totalEarned);
+      if(valEls[1]) valEls[1].textContent = fmtCr(totalEarned);
     }
   }, 200);
 }
@@ -3120,7 +3129,7 @@ function renderSetup(){
           <span class="struct-cat-pill cat-${s.category}">${s.category}</span>
           <div class="struct-meta" data-meta="${s.id}">
             <span><b>${items.length}</b> items${childList.length?` · <b>${childList.length}</b> subs`:''}</span>
-            <span>Amount: <b>${ccy()} ${fmt(structAmount(s))}</b></span>
+            <span>Amount: <b>${ccy()} ${fmtCr(structAmount(s))}</b></span>
             <span>Weight: <b>${fmtPct(structWeight(s))}</b></span>
             ${s.length?`<span>Length: <b>${s.length} m</b></span>`:''}
           </div>
@@ -3649,7 +3658,7 @@ function refreshPlanSummary(){
       <div class="kpi-sub">${activitiesTotal? Math.round(activitiesPlanned/activitiesTotal*100):0}% planned${planFilter==='length'?' · Length-only':''}</div></div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-currency-exchange"></i></div>
       <div class="kpi-label">Plan Amount (${ccy()})</div>
-      <div class="kpi-value">${fmt(totalPlannedAmount)}</div>
+      <div class="kpi-value">${fmtCr(totalPlannedAmount)}</div>
       <div class="kpi-sub">across all periods</div></div>
     <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-graph-up-arrow"></i></div>
       <div class="kpi-label">Plan Adherence</div>
@@ -4032,20 +4041,20 @@ function renderIPCKpis(){
       <div class="kpi-sub">${paid.length} paid</div></div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
       <div class="kpi-label">Billed (Incl. VAT)</div>
-      <div class="kpi-value">${fmt(totalInclVAT)}</div>
+      <div class="kpi-value">${fmtCr(totalInclVAT)}</div>
       <div class="kpi-sub">${ccy()} · ${fmtPct(billedPct)} of contract</div></div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
       <div class="kpi-label">Total Paid</div>
-      <div class="kpi-value">${fmt(totalPaid)}</div>
+      <div class="kpi-value">${fmtCr(totalPaid)}</div>
       <div class="kpi-sub">${ccy()} · payable to contractor</div></div>
     <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-piggy-bank"></i></div>
       <div class="kpi-label">Retention Held</div>
-      <div class="kpi-value">${fmt(totalRetention)}</div>
+      <div class="kpi-value">${fmtCr(totalRetention)}</div>
       <div class="kpi-sub">${ccy()} · 3% retained</div></div>
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-arrow-down-circle"></i></div>
       <div class="kpi-label">Advance Balance</div>
-      <div class="kpi-value">${fmt(advBal)}</div>
-      <div class="kpi-sub">${ccy()} · ${fmt(state.payment.advanceRecovered||0)} recovered</div></div>
+      <div class="kpi-value">${fmtCr(advBal)}</div>
+      <div class="kpi-sub">${ccy()} · ${fmtCr(state.payment.advanceRecovered||0)} recovered</div></div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-percent"></i></div>
       <div class="kpi-label">Contract Progress</div>
       <div class="kpi-value">${fmtPct(billedPct)}</div>
@@ -4085,13 +4094,13 @@ function renderIPC(){
     return `<tr class="ipc-row" onclick="editIPC('${ipc.id}')">
       <td><strong>${escapeHtml(ipc.no||'')}</strong></td>
       <td style="font-size:11px;color:var(--text-3)">${period}</td>
-      <td class="num"><strong>${fmt(c.totalWithVAT)}</strong></td>
-      <td class="num" style="color:var(--bad)">${c.supplied?'-'+fmt(c.supplied):'—'}</td>
-      <td class="num"><strong>${fmt(c.net)}</strong></td>
-      <td class="num" style="color:var(--good)">+${fmt(c.vat)}</td>
-      <td class="num" style="color:var(--bad)">-${fmt(c.retention)}</td>
-      <td class="num" style="color:var(--bad)">-${fmt(c.tds)}</td>
-      <td class="num"><strong style="color:var(--brand)">${fmt(c.payable)}</strong></td>
+      <td class="num"><strong>${fmtCr(c.totalWithVAT)}</strong></td>
+      <td class="num" style="color:var(--bad)">${c.supplied?'-'+fmtCr(c.supplied):'—'}</td>
+      <td class="num"><strong>${fmtCr(c.net)}</strong></td>
+      <td class="num" style="color:var(--good)">+${fmtCr(c.vat)}</td>
+      <td class="num" style="color:var(--bad)">-${fmtCr(c.retention)}</td>
+      <td class="num" style="color:var(--bad)">-${fmtCr(c.tds)}</td>
+      <td class="num"><strong style="color:var(--brand)">${fmtCr(c.payable)}</strong></td>
       <td><span class="pill pill-${stCls}">${ipc.status||'draft'}</span></td>
       <td><i class="bi bi-pencil" style="color:var(--text-3);font-size:12px"></i></td>
     </tr>`;
@@ -4105,13 +4114,13 @@ function renderIPC(){
     const totalInclVAT = totals.net + totals.vat;
     return `<tr style="background:var(--brand-soft);font-weight:700">
       <td><strong>TOTAL</strong></td><td>${sorted.length} IPCs</td>
-      <td class="num"><strong>${fmt(totalInclVAT)}</strong></td>
-      <td class="num" style="color:var(--bad)">-${fmt(totals.supplied)}</td>
-      <td class="num"><strong>${fmt(totals.net)}</strong></td>
-      <td class="num" style="color:var(--good)">+${fmt(totals.vat)}</td>
-      <td class="num" style="color:var(--bad)">-${fmt(totals.retention)}</td>
-      <td class="num" style="color:var(--bad)">-${fmt(totals.tds)}</td>
-      <td class="num"><strong style="color:var(--brand);font-size:14px">${fmt(totals.payable)}</strong></td>
+      <td class="num"><strong>${fmtCr(totalInclVAT)}</strong></td>
+      <td class="num" style="color:var(--bad)">-${fmtCr(totals.supplied)}</td>
+      <td class="num"><strong>${fmtCr(totals.net)}</strong></td>
+      <td class="num" style="color:var(--good)">+${fmtCr(totals.vat)}</td>
+      <td class="num" style="color:var(--bad)">-${fmtCr(totals.retention)}</td>
+      <td class="num" style="color:var(--bad)">-${fmtCr(totals.tds)}</td>
+      <td class="num"><strong style="color:var(--brand);font-size:14px">${fmtCr(totals.payable)}</strong></td>
       <td colspan="2"></td>
     </tr>`;
   })();
@@ -7256,8 +7265,8 @@ function renderHero(){
       <div class="hero-numbers">
         <div class="hero-num-item">
           <div class="hero-num-label">Earned (${ccy()})</div>
-          <div class="hero-num-value up">${fmt(earnedAmt)}</div>
-          <div class="hero-num-sub">of ${fmt(totalAmt)} total</div>
+          <div class="hero-num-value up">${fmtCr(earnedAmt)}</div>
+          <div class="hero-num-sub">of ${fmtCr(totalAmt)} total</div>
         </div>
         <div class="hero-num-item">
           <div class="hero-num-label">Schedule Elapsed${tl.isRevised?' (Rev.)':''}</div>
@@ -7462,47 +7471,47 @@ function renderDashboard(){
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
       <div class="kpi-label">Total Planned</div>
-      <div class="kpi-value">${fmt(totalAmt)}</div>
+      <div class="kpi-value">${fmtCr(totalAmt)}</div>
       <div class="kpi-sub">${ccy()} · ${activeStructs} active structures</div>
     </div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
       <div class="kpi-label">Earned to Date</div>
-      <div class="kpi-value">${fmt(earnedAmt)}</div>
+      <div class="kpi-value">${fmtCr(earnedAmt)}</div>
       <div class="kpi-sub">${ccy()} · ${totalLogs} log entries</div>
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
       <div class="kpi-label">Baseline Cost</div>
-      <div class="kpi-value">${fmt(state.project.baselineCost || 0)}</div>
+      <div class="kpi-value">${fmtCr(state.project.baselineCost || 0)}</div>
       <div class="kpi-sub">${ccy()} · original contract</div>
     </div>
     <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-plus-circle"></i></div>
       <div class="kpi-label">VO Cost</div>
-      <div class="kpi-value">${fmt(state.project.voCost || 0)}</div>
+      <div class="kpi-value">${fmtCr(state.project.voCost || 0)}</div>
       <div class="kpi-sub">${ccy()} · variation orders</div>
     </div>
     <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-arrow-repeat"></i></div>
       <div class="kpi-label">Revised Cost</div>
-      <div class="kpi-value">${fmt(state.project.revisedCost || 0)}</div>
+      <div class="kpi-value">${fmtCr(state.project.revisedCost || 0)}</div>
       <div class="kpi-sub">${ccy()} · total revised</div>
     </div>
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-calendar-day"></i></div>
       <div class="kpi-label">Today</div>
-      <div class="kpi-value">${fmt(todayEarned)}</div>
+      <div class="kpi-value">${fmtCr(todayEarned)}</div>
       <div class="kpi-sub">${ccy()} earned today</div>
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-calendar-week"></i></div>
       <div class="kpi-label">This Week</div>
-      <div class="kpi-value">${fmt(weekEarned)}</div>
+      <div class="kpi-value">${fmtCr(weekEarned)}</div>
       <div class="kpi-sub">${ccy()} since Monday</div>
     </div>
     <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-calendar-month"></i></div>
       <div class="kpi-label">This Month</div>
-      <div class="kpi-value">${fmt(monthEarned)}</div>
+      <div class="kpi-value">${fmtCr(monthEarned)}</div>
       <div class="kpi-sub">${ccy()} this month</div>
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
       <div class="kpi-label">Billed (Incl. VAT)</div>
-      <div class="kpi-value">${fmt(totalInclVAT)}</div>
+      <div class="kpi-value">${fmtCr(totalInclVAT)}</div>
       <div class="kpi-sub">${ccy()} · ${approvedIPCs.length} approved IPCs</div>
     </div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-percent"></i></div>
@@ -7581,8 +7590,8 @@ function renderDashboard(){
         <td><strong>${escapeHtml(s.name)}</strong></td>
         <td><span class="pill pill-info">${s.category}</span></td>
         <td class="num">${fmtPct(structWeight(s))}</td>
-        <td class="num">${fmt(structAmount(s))}</td>
-        <td class="num">${fmt(structEarned(s))}</td>
+        <td class="num">${fmtCr(structAmount(s))}</td>
+        <td class="num">${fmtCr(structEarned(s))}</td>
         <td><div class="bar bar-${cls}"><i style="width:${Math.min(100,pct)}%"></i></div></td>
         <td class="num"><strong>${fmtPct(pct)}</strong></td>
       </tr>`;
@@ -7616,31 +7625,31 @@ function renderCostBreakdown(){
     <div class="cost-breakdown">
       <div class="cost-item">
         <div class="cost-label">Baseline Contract Value</div>
-        <div class="cost-value">${fmt(baseline)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-value">${fmtCr(baseline)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
         <div class="cost-meta">original contract amount</div>
         <div class="cost-bar"><div class="cost-fill baseline" style="width:${pct(baseline)}%"></div></div>
       </div>
       <div class="cost-item">
         <div class="cost-label">Variation Orders (VO)</div>
-        <div class="cost-value">${fmt(vo)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-value">${fmtCr(vo)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
         <div class="cost-meta">${revised ? fmtPct((vo/revised)*100) + ' of revised total' : 'no variations'}</div>
         <div class="cost-bar"><div class="cost-fill vo" style="width:${pct(vo)}%"></div></div>
       </div>
       <div class="cost-item total">
         <div class="cost-label">Revised Total Contract</div>
-        <div class="cost-value">${fmt(revised)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-value">${fmtCr(revised)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
         <div class="cost-meta">baseline + variations</div>
         <div class="cost-bar"><div class="cost-fill total" style="width:100%"></div></div>
       </div>
       <div class="cost-item billed">
         <div class="cost-label"><i class="bi bi-check2-circle"></i> Billed / Earned from Daily Logs</div>
-        <div class="cost-value">${fmt(earned)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-value">${fmtCr(earned)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
         <div class="cost-meta">${fmtPct(billedPctOfContract)} of revised contract · ${state.logs.length} log entries</div>
         <div class="cost-bar"><div class="cost-fill billed" style="width:${pct(earned)}%"></div></div>
       </div>
       <div class="cost-item remaining">
         <div class="cost-label"><i class="bi bi-hourglass-split"></i> Remaining to Bill</div>
-        <div class="cost-value">${fmt(remaining)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
+        <div class="cost-value">${fmtCr(remaining)} <span style="font-size:12px;color:var(--text-3)">${ccy()}</span></div>
         <div class="cost-meta">${fmtPct(revised ? (remaining/revised)*100 : 0)} of revised contract still to earn</div>
         <div class="cost-bar"><div class="cost-fill remaining" style="width:${pct(remaining)}%"></div></div>
       </div>
@@ -7691,7 +7700,7 @@ function renderBilling(){
   kpiHost.innerHTML = `
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
       <div class="kpi-label">Total Bill Amount</div>
-      <div class="kpi-value">${fmt(totalBilled)}</div>
+      <div class="kpi-value">${fmtCr(totalBilled)}</div>
       <div class="kpi-sub">${ccy()} · from daily logs</div></div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-percent"></i></div>
       <div class="kpi-label">% of Contract</div>
@@ -8023,7 +8032,7 @@ function renderReport(){
     host.innerHTML = `
       <div style="margin-bottom:18px;display:flex;gap:12px;flex-wrap:wrap">
         <div class="kpi" style="flex:1;min-width:180px"><div class="kpi-label">Date</div><div class="kpi-value" style="font-size:18px">${date}</div></div>
-        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Day Earned</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${ccy()}</div></div>
+        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Day Earned</div><div class="kpi-value">${fmtCr(total)}</div><div class="kpi-sub">${ccy()}</div></div>
         <div class="kpi kpi-info" style="flex:1;min-width:180px"><div class="kpi-label">Entries</div><div class="kpi-value">${logs.length}</div><div class="kpi-sub">log entries</div></div>
       </div>
       ${Object.keys(byStruct).length ? Object.entries(byStruct).map(([path, arr])=>{
@@ -8070,7 +8079,7 @@ function renderReport(){
     host.innerHTML = `
       <div style="margin-bottom:18px;display:flex;gap:12px;flex-wrap:wrap">
         <div class="kpi" style="flex:1;min-width:200px"><div class="kpi-label">Week Range</div><div class="kpi-value" style="font-size:14px">${wsStr} → ${weStr}</div></div>
-        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Week Earned</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${ccy()}</div></div>
+        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Week Earned</div><div class="kpi-value">${fmtCr(total)}</div><div class="kpi-sub">${ccy()}</div></div>
         <div class="kpi kpi-info" style="flex:1;min-width:180px"><div class="kpi-label">Entries</div><div class="kpi-value">${logs.length}</div></div>
       </div>
       <div class="card">
@@ -8108,7 +8117,7 @@ function renderReport(){
     host.innerHTML = `
       <div style="margin-bottom:18px;display:flex;gap:12px;flex-wrap:wrap">
         <div class="kpi" style="flex:1;min-width:180px"><div class="kpi-label">Month</div><div class="kpi-value" style="font-size:18px">${ms}</div></div>
-        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Month Earned</div><div class="kpi-value">${fmt(total)}</div><div class="kpi-sub">${ccy()}</div></div>
+        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Month Earned</div><div class="kpi-value">${fmtCr(total)}</div><div class="kpi-sub">${ccy()}</div></div>
         <div class="kpi kpi-info" style="flex:1;min-width:180px"><div class="kpi-label">Entries</div><div class="kpi-value">${logs.length}</div></div>
       </div>
       <div class="card">
@@ -8137,9 +8146,9 @@ function renderReport(){
     host.innerHTML = `
       <div style="margin-bottom:18px;display:flex;gap:12px;flex-wrap:wrap">
         <div class="kpi" style="flex:1;min-width:180px"><div class="kpi-label">Overall Progress</div><div class="kpi-value">${fmtPct(overall)}</div><div class="bar" style="margin-top:6px"><i style="width:${Math.min(100,overall)}%"></i></div></div>
-        <div class="kpi kpi-info" style="flex:1;min-width:180px"><div class="kpi-label">Planned (${ccy()})</div><div class="kpi-value">${fmt(planned)}</div></div>
-        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Earned (${ccy()})</div><div class="kpi-value">${fmt(earned)}</div></div>
-        <div class="kpi kpi-warn" style="flex:1;min-width:180px"><div class="kpi-label">Remaining (${ccy()})</div><div class="kpi-value">${fmt(planned-earned)}</div></div>
+        <div class="kpi kpi-info" style="flex:1;min-width:180px"><div class="kpi-label">Planned (${ccy()})</div><div class="kpi-value">${fmtCr(planned)}</div></div>
+        <div class="kpi kpi-good" style="flex:1;min-width:180px"><div class="kpi-label">Earned (${ccy()})</div><div class="kpi-value">${fmtCr(earned)}</div></div>
+        <div class="kpi kpi-warn" style="flex:1;min-width:180px"><div class="kpi-label">Remaining (${ccy()})</div><div class="kpi-value">${fmtCr(planned-earned)}</div></div>
       </div>
       <div class="card">
         <div class="card-head"><h3>All Structures — Overall</h3></div>
@@ -8152,8 +8161,8 @@ function renderReport(){
                 <td><strong>${escapeHtml(s.name)}</strong></td>
                 <td><span class="pill pill-info">${s.category}</span></td>
                 <td class="num">${fmtPct(structWeight(s))}</td>
-                <td class="num">${fmt(structAmount(s))}</td>
-                <td class="num">${fmt(structEarned(s))}</td>
+                <td class="num">${fmtCr(structAmount(s))}</td>
+                <td class="num">${fmtCr(structEarned(s))}</td>
                 <td><div class="bar"><i style="width:${Math.min(100,p)}%"></i></div></td>
                 <td class="num"><strong>${fmtPct(p)}</strong></td>
               </tr>`;
