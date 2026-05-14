@@ -3029,7 +3029,8 @@ function updateStartingQty(sid, iid, val){
       amtCell.innerHTML = `<span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmtCr(earned)}</span>`;
     }
   }
-  // Debounce: update the summary "Already Earned" total
+  // Debounce: update the summary "Already Earned" total, and also live-refresh
+  // the dashboard if it's open — both share one debounce to coalesce keystrokes.
   if(midRefreshTimer) clearTimeout(midRefreshTimer);
   midRefreshTimer = setTimeout(()=>{
     let totalEarned = 0;
@@ -3044,7 +3045,10 @@ function updateStartingQty(sid, iid, val){
       // Order: Activities, Already Earned
       if(valEls[1]) valEls[1].textContent = fmtCr(totalEarned);
     }
-  }, 200);
+    if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
+      renderDashboard();
+    }
+  }, 250);
 }
 
 /* ---- Structure CRUD ---- */
@@ -3121,6 +3125,16 @@ function updateItemField(sid, iid, key, value){
   const i = s.items.find(i=>i.id===iid); if(!i) return;
   if(key==='plannedQty' || key==='rate') value = Number(value)||0;
   i[key] = value;
+  // If a chainage m-unit item's plannedQty changed, sync s.length to the new total
+  // so the dashboard donut shows the right denominator.
+  if(key==='plannedQty' && (i.unit||'').toLowerCase()==='m' && /length|advance|chainage/i.test(i.activity||'')){
+    const chainItems = (s.items||[]).filter(x => (x.unit||'').toLowerCase()==='m' && /length|advance|chainage/i.test(x.activity||''));
+    if(chainItems.length === 1){
+      s.length = Number(i.plannedQty)||0;
+    } else if(chainItems.length > 1){
+      s.length = chainItems.reduce((sum,x)=>sum+(Number(x.plannedQty)||0), 0);
+    }
+  }
   save();
   // Update visible amount cell without full re-render
   const amtCell = document.querySelector(`[data-amt="${iid}"]`);
@@ -3128,6 +3142,10 @@ function updateItemField(sid, iid, key, value){
   // Refresh structure meta line
   refreshStructMeta(sid);
   updateTotalSummary();
+  // Live-refresh dashboard if it's open
+  if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
+    renderDashboard();
+  }
 }
 
 function refreshStructMeta(sid){
@@ -3303,6 +3321,10 @@ function saveModal(){
   save();
   renderSetup();
   closeModal();
+  // Live-refresh dashboard if it's open
+  if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
+    renderDashboard();
+  }
   toast(autoTracked ? 'Length set — now tracked on Dashboard' : 'Structure updated','good');
 }
 
@@ -6864,7 +6886,11 @@ function getLinearProgress(s){
   const items = chainItems.length ? chainItems : [allMItems[0]];
   // Sum completed qty across all chainage items (each is a separate sub-component)
   const completed = items.reduce((sum, i) => sum + itemActualQty(s.id, i.id), 0);
-  const total = Number(s.length) || items.reduce((sum, i)=>sum+(Number(i.plannedQty)||0), 0);
+  // Total: with multiple chainage segments, always sum the items so per-segment
+  // edits (e.g. Adit-1 changed from 137 → 150 m) flow through to the dashboard.
+  // With a single chainage item, prefer s.length (saveModal keeps it in sync).
+  const itemsSum = items.reduce((sum, i)=>sum+(Number(i.plannedQty)||0), 0);
+  const total = chainItems.length > 1 ? itemsSum : (Number(s.length) || itemsSum);
   return {
     item: items[0],   // representative item (first chainage)
     items,            // all chainage items (for itemized rendering)
