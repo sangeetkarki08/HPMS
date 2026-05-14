@@ -1944,6 +1944,15 @@ body.auth-locked{overflow:hidden;}
         </div>
         <div class="card-body" id="finProgressHost"></div>
       </div>
+
+      <!-- Daily Progress Summary (latest entries from Daily Log Sheet) -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-journal-text" style="margin-right:6px;color:var(--brand)"></i> Daily Progress Summary</h3>
+          <span style="font-size:11px;color:var(--text-3)" id="dailySummarySubText">latest entries from Daily Log Sheet</span>
+        </div>
+        <div class="card-body" id="dailySummaryHost"></div>
+      </div>
       <div class="card" style="margin-bottom:18px" id="linearCard">
         <div class="card-head">
           <h3><i class="bi bi-rulers" style="margin-right:6px;color:var(--brand)"></i> Length-wise Progress</h3>
@@ -7167,79 +7176,88 @@ function renderTimeline(){
     ? `baseline + ${extDays>0?'+':''}${extDays} day revised`
     : 'baseline only — set Revised dates in Setup';
 
-  // Build summary stats
-  const summaryHtml = `
-    <div class="timeline-summary">
-      <div class="tl-stat"><div class="tl-stat-label">Baseline Duration</div>
-        <div class="tl-stat-value">${baseDays} days</div>
-        <div class="tl-stat-sub">${baseStart} → ${baseEnd}</div></div>
-      ${hasRevised ? `
-      <div class="tl-stat"><div class="tl-stat-label">Revised Duration</div>
-        <div class="tl-stat-value warn">${revDays} days ${extDays!==0?`<span class="${extCls}" style="margin-left:4px"><i class="bi bi-${extDays>0?'arrow-up':'arrow-down'}"></i> ${extDays>0?'+':''}${extDays}d</span>`:''}</div>
-        <div class="tl-stat-sub">${revStart||baseStart} → ${revEnd||baseEnd}</div></div>` : ''}
-      <div class="tl-stat"><div class="tl-stat-label">Earned Progress</div>
-        <div class="tl-stat-value">${overall.toFixed(1)}%</div>
-        <div class="tl-stat-sub">work physically completed</div></div>
-      <div class="tl-stat"><div class="tl-stat-label">Schedule Elapsed (${hasRevised?'Revised':'Baseline'})</div>
-        <div class="tl-stat-value">${activeElapsedPct.toFixed(1)}%</div>
-        <div class="tl-stat-sub">${hasRevised?revElapsedDays:baseElapsedDays} days elapsed</div></div>
-      <div class="tl-stat"><div class="tl-stat-label">Schedule Variance</div>
-        <div class="tl-stat-value ${varCls}">${variance>=0?'+':''}${variance.toFixed(1)}%</div>
-        <div class="tl-stat-sub">${varLabel}</div></div>
+  // Donut helpers (shared visual language with cost / financial / length tiles)
+  const R = 30, CIRC = 2 * Math.PI * R;
+  const donut = (p) => {
+    const clamped = Math.min(100, Math.max(0, p));
+    const off = CIRC * (1 - clamped/100);
+    return `<div class="lp-donut">
+      <svg viewBox="0 0 72 72">
+        <circle class="lp-donut-track" cx="36" cy="36" r="${R}"/>
+        <circle class="lp-donut-fill" cx="36" cy="36" r="${R}"
+          stroke-dasharray="${CIRC.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>
+      </svg>
+      <div class="lp-donut-pct">${p.toFixed(0)}%</div>
     </div>`;
-
-  // Baseline track
-  const basePos = positionPct(bs);
-  const baseW = widthPct(bs, be);
-  const baseProgressFillW = baseW * Math.min(100, baseElapsedPct)/100;
-
-  // Revised track
-  const revPos = positionPct(rs);
-  const revW = widthPct(rs, re);
-  const revProgressFillW = revW * Math.min(100, revElapsedPct)/100;
-
-  // Extension overlay (where revised extends past baseline)
-  const extOverlayHtml = (hasRevised && re > be) ? `
-    <div class="tl-track-extension" style="left:${positionPct(be)}%;width:${widthPct(be, re)}%"></div>` : '';
-
-  let tracksHtml = `
-    <div class="tl-row" style="margin-bottom:14px">
-      <div class="tl-row-label">
-        <div class="tl-row-name baseline"><i class="bi bi-flag-fill"></i> Baseline</div>
-        <div class="tl-row-dates">${baseStart} → ${baseEnd}</div>
-      </div>
-      <div class="tl-track">
-        ${inWindow?`<div class="tl-today" style="left:${todayPct}%"></div>`:''}
-        <div class="tl-track-baseline" style="left:${basePos}%;width:${baseW}%">
-          <span class="tl-track-label">${baseDays}d · ${baseElapsedPct.toFixed(0)}% elapsed</span>
+  };
+  const tile = (clsName, icon, name, sub, amount, pctVal, statBelow) => {
+    const unit = (statBelow && typeof statBelow === 'object') ? (statBelow.unit||'') : '';
+    const note = (statBelow && typeof statBelow === 'object') ? (statBelow.note||'') : (statBelow||'');
+    return `<div class="lp-tile lp-${clsName}" title="${escapeHtml(name)} — ${escapeHtml(amount)}">
+      <div class="lp-tile-head">
+        <div class="lp-tile-icon"><i class="bi bi-${icon}"></i></div>
+        <div class="lp-tile-titles">
+          <div class="lp-tile-name">${escapeHtml(name)}</div>
+          <div class="lp-tile-cat">${escapeHtml(sub)}</div>
         </div>
-        <div class="tl-progress-fill" style="left:${basePos}%;width:${baseProgressFillW}%;background:rgba(255,255,255,.18);border-right:2px solid #fff"></div>
       </div>
-    </div>`;
-
-  if(hasRevised){
-    tracksHtml += `
-    <div class="tl-row">
-      <div class="tl-row-label">
-        <div class="tl-row-name revised"><i class="bi bi-flag-fill"></i> Revised</div>
-        <div class="tl-row-dates">${revStart||baseStart} → ${revEnd||baseEnd}</div>
-      </div>
-      <div class="tl-track">
-        ${inWindow?`<div class="tl-today" style="left:${todayPct}%"></div>`:''}
-        ${extOverlayHtml}
-        <div class="tl-track-revised" style="left:${revPos}%;width:${revW}%">
-          <span class="tl-track-label">${revDays}d · ${revElapsedPct.toFixed(0)}% elapsed</span>
+      <div class="lp-tile-body">
+        ${donut(pctVal)}
+        <div class="lp-tile-stats">
+          <div class="done">${amount}</div>
+          <div class="total">${escapeHtml(unit)}</div>
+          <div class="remain">${escapeHtml(note)}</div>
         </div>
-        <div class="tl-progress-fill" style="left:${revPos}%;width:${revProgressFillW}%;background:rgba(255,255,255,.18);border-right:2px solid #fff"></div>
       </div>
     </div>`;
-  }
+  };
 
-  if(reason){
-    tracksHtml += `<div class="tl-reason"><b>Time Extension Reason:</b> ${escapeHtml(reason)}</div>`;
-  }
+  // Days remaining (on active timeline)
+  const activeStart = hasRevised ? rs : bs;
+  const activeEnd = hasRevised ? re : be;
+  const activeTotalDays = Math.max(1, Math.round((activeEnd - activeStart)/dayMs));
+  const daysRemaining = Math.max(0, Math.round((activeEnd - today)/dayMs));
+  const remainingPct = activeTotalDays ? Math.max(0, Math.min(100, (daysRemaining/activeTotalDays)*100)) : 0;
 
-  host.innerHTML = `<div class="timeline-grid">${summaryHtml}<div style="margin-top:6px">${tracksHtml}</div></div>`;
+  const baselineTile = tile('info', 'flag', 'Baseline Schedule', `${baseStart} → ${baseEnd}`,
+    `${baseElapsedDays} / ${baseDays} d`, Math.min(100, baseElapsedPct),
+    {unit:'days', note: `${fmtPct(baseElapsedPct)} elapsed`});
+
+  const revisedTile = hasRevised ? tile('warn', 'flag-fill', 'Revised Schedule', `${revStart||baseStart} → ${revEnd||baseEnd}`,
+    `${revElapsedDays} / ${revDays} d`, Math.min(100, revElapsedPct),
+    {unit:'days', note: `${extDays>0?'+':''}${extDays}d vs baseline`}) : '';
+
+  const remainingTile = tile('', 'hourglass-split', 'Days Remaining',
+    `to ${hasRevised ? (revEnd||baseEnd) : baseEnd}`,
+    `${daysRemaining} d`, remainingPct,
+    {unit:'days', note: daysRemaining===0 ? 'completed/overdue' : 'until planned end'});
+
+  const earnedTile = tile('good', 'check2-circle', 'Earned Progress', 'work physically completed',
+    fmtPct(overall), Math.min(100, overall),
+    {unit:'', note: 'qty × rate / total'});
+
+  const varianceCls = variance >= 0 ? 'good' : 'bad';
+  const varianceIcon = variance >= 0 ? 'arrow-up-circle' : 'arrow-down-circle';
+  const spiPct = activeElapsedPct > 0 ? Math.min(150, (overall/activeElapsedPct)*100) : 100;
+  const varianceTile = tile(varianceCls, varianceIcon, 'Schedule Variance', varLabel,
+    `${variance>=0?'+':''}${variance.toFixed(1)}%`, Math.min(100, spiPct),
+    {unit:'', note: `vs ${hasRevised?'revised':'baseline'} elapsed`});
+
+  const reasonHtml = reason ? `
+    <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--text-3)">
+      <i class="bi bi-info-circle" style="color:var(--accent)"></i>
+      <strong style="color:var(--text-1)">Time Extension Reason:</strong> ${escapeHtml(reason)}
+    </div>` : '';
+
+  host.innerHTML = `
+    <div class="lp-tile-grid">
+      ${baselineTile}
+      ${revisedTile}
+      ${remainingTile}
+      ${earnedTile}
+      ${varianceTile}
+    </div>
+    ${reasonHtml}`;
 }
 
 let _heroDrag = null;
@@ -7546,11 +7564,12 @@ function renderDashboard(){
   const totalLogs = state.logs.length;
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
 
-  // Financial progress (Billed Incl. VAT from approved IPCs) — matches IPC tab
+  // Financial progress (Billed Incl. VAT from approved IPCs + Mobilization Advance) — matches IPC tab
   const approvedIPCs = (state.ipcs||[]).filter(i=>i.status==='approved' || i.status==='paid');
   const totalInclVAT = approvedIPCs.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
   const contractValue = Number(state.project.contractValue)||0;
-  const finPct = contractValue ? (totalInclVAT/contractValue)*100 : 0;
+  const advAmt = Number(state.payment?.advanceAmount)||0;
+  const finPct = contractValue ? ((totalInclVAT + advAmt)/contractValue)*100 : 0;
 
   document.getElementById('kpiHost').innerHTML = `
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-speedometer2"></i></div>
@@ -7607,7 +7626,7 @@ function renderDashboard(){
       <div class="kpi-label">Financial Progress</div>
       <div class="kpi-value">${fmtPct(finPct)}</div>
       <div class="bar bar-good" style="margin-top:6px"><i style="width:${Math.min(100,finPct)}%"></i></div>
-      <div class="kpi-sub">billed incl. VAT vs contract</div>
+      <div class="kpi-sub">billed + advance vs contract</div>
     </div>`;
 
   // S-curve (cumulative %)
@@ -7694,6 +7713,88 @@ function renderDashboard(){
   renderPVA();
   renderCostBreakdown();
   renderFinancialProgress();
+  renderDailyProgressSummary();
+}
+
+/* ============================================================
+   DAILY PROGRESS SUMMARY — latest entries from Daily Log Sheet
+   ============================================================ */
+function renderDailyProgressSummary(){
+  const host = document.getElementById('dailySummaryHost');
+  const sub = document.getElementById('dailySummarySubText');
+  if(!host) return;
+  const logs = (state.logs||[]).slice().sort((a,b)=>{
+    if((b.date||'') !== (a.date||'')) return (b.date||'').localeCompare(a.date||'');
+    return (b.ts||0) - (a.ts||0);
+  });
+  if(!logs.length){
+    host.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px">
+      <i class="bi bi-journal-x" style="font-size:24px;display:block;margin-bottom:8px"></i>
+      No daily log entries yet. Add progress in the <a href="#" onclick="document.querySelector('[data-page=log]').click();return false" style="color:var(--brand);font-weight:600">Daily Log Sheet</a> tab.
+    </div>`;
+    if(sub) sub.textContent = 'no entries';
+    return;
+  }
+  const latestDate = logs[0].date;
+  const todayKey = new Date().toISOString().slice(0,10);
+  const todaysLogs = logs.filter(l=>l.date===todayKey);
+  const latestLogs = logs.slice(0, 10);
+  const todayEarned = todaysLogs.reduce((s,l)=>s+logEarnedValue(l), 0);
+  const latestEarned = logs.filter(l=>l.date===latestDate).reduce((s,l)=>s+logEarnedValue(l), 0);
+  if(sub){
+    sub.textContent = `latest: ${latestDate} · ${todaysLogs.length} entries today · ${logs.length} total`;
+  }
+  const rows = latestLogs.map(l=>{
+    const s = state.structures.find(x=>x.id===l.structureId);
+    const i = s ? (s.items||[]).find(x=>x.id===l.itemId) : null;
+    const rate = i ? (Number(i.rate)||0) : 0;
+    const earned = (Number(l.qty)||0) * rate;
+    const isToday = l.date === todayKey;
+    const dateBadge = isToday
+      ? `<span style="background:var(--brand-soft);color:var(--brand);padding:2px 8px;border-radius:6px;font-weight:700;font-size:10.5px">TODAY</span>`
+      : `<span style="color:var(--text-2)">${escapeHtml(l.date||'')}</span>`;
+    return `<tr>
+      <td>${dateBadge}</td>
+      <td><strong>${escapeHtml((s&&s.name)||'—')}</strong></td>
+      <td>${escapeHtml((i&&i.activity)||'—')}</td>
+      <td class="num mono">${fmt2(Number(l.qty)||0)} ${escapeHtml((i&&i.unit)||'')}</td>
+      <td class="num mono" style="color:var(--good);font-weight:700">${earned ? fmtCr(earned) : '—'}</td>
+      <td>${escapeHtml(l.by||'—')}</td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px">
+      <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Latest Log Date</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-top:3px">${escapeHtml(latestDate||'—')}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">${fmtCr(latestEarned)} ${ccy()} earned that day</div>
+      </div>
+      <div style="background:var(--bg-2);border:1px solid var(--brand);border-radius:10px;padding:10px 12px">
+        <div style="font-size:10.5px;color:var(--brand);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Today (${todayKey})</div>
+        <div style="font-size:15px;font-weight:700;color:var(--brand);margin-top:3px">${todaysLogs.length} entries</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">${fmtCr(todayEarned)} ${ccy()} earned today</div>
+      </div>
+      <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Showing</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-top:3px">last ${latestLogs.length} of ${logs.length}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px"><a href="#" onclick="document.querySelector('[data-page=log]').click();return false" style="color:var(--brand);font-weight:600">View all in Daily Log →</a></div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead style="background:var(--bg-2)">
+          <tr style="text-align:left">
+            <th style="padding:8px 10px;font-weight:600;color:var(--text-3);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;border-bottom:1px solid var(--line)">Date</th>
+            <th style="padding:8px 10px;font-weight:600;color:var(--text-3);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;border-bottom:1px solid var(--line)">Structure</th>
+            <th style="padding:8px 10px;font-weight:600;color:var(--text-3);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;border-bottom:1px solid var(--line)">Activity</th>
+            <th style="padding:8px 10px;font-weight:600;color:var(--text-3);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;border-bottom:1px solid var(--line);text-align:right">Quantity</th>
+            <th style="padding:8px 10px;font-weight:600;color:var(--text-3);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;border-bottom:1px solid var(--line);text-align:right">Earned (${ccy()})</th>
+            <th style="padding:8px 10px;font-weight:600;color:var(--text-3);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;border-bottom:1px solid var(--line)">By</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 /* ============================================================
@@ -7750,6 +7851,10 @@ function renderFinancialProgress(){
   const advRecovered = Number(state.payment?.advanceRecovered) || 0;
   const advBalance = Math.max(0, advTotal - advRecovered);
   const advRecoveredPct = advTotal ? Math.min(100, (advRecovered/advTotal)*100) : 0;
+
+  // Financial Progress = work earned + mobilization advance received (Nepali contract convention)
+  const finProgressAmount = actual + advTotal;
+  const finProgressPct = revised ? Math.min(100, (finProgressAmount/revised)*100) : 0;
 
   const pctOfRevised = v => revised ? Math.max(0, Math.min(100, (v/revised)*100)) : 0;
   const plannedPct = pctOfRevised(planned);
@@ -7811,10 +7916,13 @@ function renderFinancialProgress(){
 
   host.innerHTML = `
     <div class="lp-tile-grid">
+      ${tile('good', 'percent',         'Financial Progress', 'earned + advance vs revised',
+              fmtCr(finProgressAmount), finProgressPct,
+              `${fmtPct(finProgressPct)} (incl. advance)`)}
       ${tile('info', 'calendar2-check', 'Planned to Date', 'per schedule',
               fmtCr(planned), plannedPct,
               fmtPct(plannedPct) + ' of revised')}
-      ${tile('good', 'check2-circle',   'Actual to Date',  'from daily logs',
+      ${tile('',     'check2-circle',   'Actual Earned',  'work qty × rate (daily logs)',
               fmtCr(actual), actualPct,
               fmtPct(actualPct) + ' of revised')}
       ${tile(varCls, variance >= 0 ? 'arrow-up-circle' : 'arrow-down-circle',
