@@ -1580,9 +1580,12 @@ body.auth-locked{overflow:hidden;}
       <div class="kpi-grid" id="ipcKpiHost"></div>
 
       <div class="card" style="margin-bottom:18px">
-        <div class="card-head"><h3><i class="bi bi-cash-coin" style="margin-right:6px;color:var(--brand)"></i> Advance Payment</h3></div>
+        <div class="card-head"><h3><i class="bi bi-cash-coin" style="margin-right:6px;color:var(--brand)"></i> Bill Amount &amp; Advance Payment</h3>
+          <span style="font-size:11px;color:var(--text-3)">used by the Dashboard's Financial Progress: (bill + advance) / contract</span>
+        </div>
         <div class="card-body">
           <div class="form-grid">
+            <div class="field"><label>Total Bill Amount to Date (manual)</label><input type="number" id="billAmount" step="0.01" data-perm="ipc.create" oninput="updatePayment('billAmount',this.value)" placeholder="0.00"></div>
             <div class="field"><label>Advance Received (Mobilisation)</label><input type="number" id="advAmount" step="0.01" data-perm="ipc.create" oninput="updatePayment('advanceAmount',this.value)" placeholder="0.00"></div>
             <div class="field"><label>Advance Date</label><input type="date" id="advDate" data-perm="ipc.create" onchange="updatePayment('advanceDate',this.value)"></div>
             <div class="field"><label>Advance Recovery Rate (%)</label><input type="number" id="advRecoveryPct" step="0.01" value="10" data-perm="ipc.create" oninput="updatePayment('advanceRecoveryPct',this.value)" placeholder="10"></div>
@@ -2384,7 +2387,7 @@ const DEFAULT = {
   structures:[],
   logs:[],
   ipcs:[],
-  payment:{advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0},
+  payment:{billAmount:0, advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0},
   approvals:{},   // { 'weekly:2025-W01': {by, when, locked:true}, 'monthly:2025-01':{...} }
   milestones:[], // { id, wbs, name, duration, plannedStart, plannedEnd, actualStart, actualEnd, status, notes }
   projectMilestones:[], // { id, name, date, achieved, achievedDate, notes } — key project milestones shown on dashboard
@@ -2407,7 +2410,7 @@ let state = (()=>{
     if(raw){
       const data = JSON.parse(raw);
       data.ipcs = data.ipcs || [];
-      data.payment = data.payment || {advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
+      data.payment = data.payment || {billAmount:0, advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
       data.approvals = data.approvals || {};
       data.milestones = data.milestones || [];
       data.projectMilestones = data.projectMilestones || [];
@@ -4111,6 +4114,10 @@ function updatePayment(key, val){
   state.payment[key] = (key==='advanceDate') ? val : (Number(val)||0);
   save();
   renderIPCKpis();
+  // Reflect changes on the Dashboard immediately if it's the active tab
+  if(document.getElementById('page-dashboard')?.classList.contains('active')){
+    renderDashboard();
+  }
 }
 
 function renderIPCKpis(){
@@ -4157,6 +4164,7 @@ function renderIPCKpis(){
 
 function renderIPC(){
   // Pre-fill payment form
+  document.getElementById('billAmount').value = state.payment.billAmount || '';
   document.getElementById('advAmount').value = state.payment.advanceAmount || '';
   document.getElementById('advDate').value = state.payment.advanceDate || '';
   document.getElementById('advRecoveryPct').value = state.payment.advanceRecoveryPct || 10;
@@ -7564,12 +7572,13 @@ function renderDashboard(){
   const totalLogs = state.logs.length;
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
 
-  // Financial progress (Billed Incl. VAT from approved IPCs + Mobilization Advance) — matches IPC tab
+  // Financial progress (Manual Bill Amount + Mobilization Advance) / Contract Value
   const approvedIPCs = (state.ipcs||[]).filter(i=>i.status==='approved' || i.status==='paid');
   const totalInclVAT = approvedIPCs.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
   const contractValue = Number(state.project.contractValue)||0;
+  const billAmt = Number(state.payment?.billAmount)||0;
   const advAmt = Number(state.payment?.advanceAmount)||0;
-  const finPct = contractValue ? ((totalInclVAT + advAmt)/contractValue)*100 : 0;
+  const finPct = contractValue ? ((billAmt + advAmt)/contractValue)*100 : 0;
 
   document.getElementById('kpiHost').innerHTML = `
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-speedometer2"></i></div>
@@ -7626,7 +7635,7 @@ function renderDashboard(){
       <div class="kpi-label">Financial Progress</div>
       <div class="kpi-value">${fmtPct(finPct)}</div>
       <div class="bar bar-good" style="margin-top:6px"><i style="width:${Math.min(100,finPct)}%"></i></div>
-      <div class="kpi-sub">billed + advance vs contract</div>
+      <div class="kpi-sub">bill + advance vs contract</div>
     </div>`;
 
   // S-curve (cumulative %)
@@ -7798,85 +7807,28 @@ function renderDailyProgressSummary(){
 }
 
 /* ============================================================
-   FINANCIAL PROGRESS — planned vs actual + mobilization advance
+   FINANCIAL PROGRESS — manual Bill Amount + Mobilization Advance
+   Formula: Financial Progress = (Bill Amount + Advance) / Contract
    ============================================================ */
-function plannedEarnedToDate(){
-  // Prefer monthly-plan data filled in by user; fall back to linear time
-  const todayMonth = new Date().toISOString().slice(0,7);
-  let planned = 0;
-  let hasAnyPlan = false;
-  (state.structures||[]).forEach(s=>{
-    if(s.category==='group') return;
-    (s.items||[]).forEach(i=>{
-      const rate = Number(i.rate)||0;
-      const mp = i.monthlyPlan || {};
-      const keys = Object.keys(mp);
-      if(keys.length) hasAnyPlan = true;
-      keys.forEach(k=>{
-        if(k <= todayMonth) planned += (Number(mp[k])||0) * rate;
-      });
-    });
-  });
-  if(hasAnyPlan) return {value: planned, source: 'monthly plan'};
-
-  // Fallback: linear interpolation between project start and end
-  const start = state.project.startDate;
-  const end = state.project.endDate;
-  const total = projectAmount();
-  if(!start || !end || !total) return {value: 0, source: 'no plan data'};
-  const ms0 = new Date(start).getTime();
-  const ms1 = new Date(end).getTime();
-  const now = Date.now();
-  if(now <= ms0) return {value: 0, source: 'linear (project not started)'};
-  if(now >= ms1) return {value: total, source: 'linear (past planned end)'};
-  return {value: total * ((now - ms0) / (ms1 - ms0)), source: 'linear (no plan data)'};
-}
-
 function renderFinancialProgress(){
   const host = document.getElementById('finProgressHost');
   if(!host) return;
   const sub = document.getElementById('finProgSubText');
 
-  const baseline = Number(state.project.baselineCost) || 0;
-  const vo = Number(state.project.voCost) || 0;
-  const revised = (Number(state.project.revisedCost) || 0) || (baseline + vo) || projectAmount();
-  const actual = projectEarned();
-  const planResult = plannedEarnedToDate();
-  const planned = planResult.value;
-  const variance = actual - planned;
-  const spi = planned > 0 ? (actual / planned) : (actual > 0 ? 1.5 : 1);
-  const spiCapped = Math.min(150, spi * 100);
-
+  const contract = Number(state.project.contractValue) || Number(state.project.revisedCost) || 0;
+  const bill = Number(state.payment?.billAmount) || 0;
   const advTotal = Number(state.payment?.advanceAmount) || 0;
   const advRecovered = Number(state.payment?.advanceRecovered) || 0;
   const advBalance = Math.max(0, advTotal - advRecovered);
   const advRecoveredPct = advTotal ? Math.min(100, (advRecovered/advTotal)*100) : 0;
 
-  // Financial Progress = work earned + mobilization advance received (Nepali contract convention)
-  const finProgressAmount = actual + advTotal;
-  const finProgressPct = revised ? Math.min(100, (finProgressAmount/revised)*100) : 0;
-
-  const pctOfRevised = v => revised ? Math.max(0, Math.min(100, (v/revised)*100)) : 0;
-  const plannedPct = pctOfRevised(planned);
-  const actualPct = pctOfRevised(actual);
-
-  // Variance status
-  let varCls, varText;
-  if(planned <= 0){
-    varCls = 'info'; varText = 'no planned data';
-  } else if(spi >= 1.05){
-    varCls = 'good'; varText = 'ahead of schedule';
-  } else if(spi >= 0.95){
-    varCls = 'info'; varText = 'on track';
-  } else if(spi >= 0.80){
-    varCls = 'warn'; varText = 'slightly behind';
-  } else {
-    varCls = 'bad'; varText = 'behind schedule';
-  }
+  const finAmount = bill + advTotal;
+  const finPct = contract ? Math.min(100, (finAmount/contract)*100) : 0;
+  const billPct = contract ? Math.min(100, (bill/contract)*100) : 0;
+  const advPctOfContract = contract ? Math.min(100, (advTotal/contract)*100) : 0;
 
   if(sub){
-    sub.textContent = `planned source: ${planResult.source}` +
-      (advTotal ? ` · advance ${fmtPct(advRecoveredPct)} recovered` : '');
+    sub.textContent = `(bill ${fmtCr(bill)} + advance ${fmtCr(advTotal)}) ÷ contract ${fmtCr(contract)} = ${fmtPct(finPct)}`;
   }
 
   const R = 30, CIRC = 2 * Math.PI * R;
@@ -7893,13 +7845,13 @@ function renderFinancialProgress(){
     </div>`;
   };
 
-  const tile = (clsName, icon, name, sub, amount, pctVal, statBelow) => `
+  const tile = (clsName, icon, name, subLabel, amount, pctVal, statBelow) => `
     <div class="lp-tile lp-${clsName}" title="${escapeHtml(name)} — ${escapeHtml(amount)}">
       <div class="lp-tile-head">
         <div class="lp-tile-icon"><i class="bi bi-${icon}"></i></div>
         <div class="lp-tile-titles">
           <div class="lp-tile-name">${escapeHtml(name)}</div>
-          <div class="lp-tile-cat">${escapeHtml(sub)}</div>
+          <div class="lp-tile-cat">${escapeHtml(subLabel)}</div>
         </div>
       </div>
       <div class="lp-tile-body">
@@ -7912,36 +7864,29 @@ function renderFinancialProgress(){
       </div>
     </div>`;
 
-  const varAmount = (variance >= 0 ? '+' : '−') + fmtCr(Math.abs(variance));
-
   host.innerHTML = `
     <div class="lp-tile-grid">
-      ${tile('good', 'percent',         'Financial Progress', 'earned + advance vs revised',
-              fmtCr(finProgressAmount), finProgressPct,
-              `${fmtPct(finProgressPct)} (incl. advance)`)}
-      ${tile('info', 'calendar2-check', 'Planned to Date', 'per schedule',
-              fmtCr(planned), plannedPct,
-              fmtPct(plannedPct) + ' of revised')}
-      ${tile('',     'check2-circle',   'Actual Earned',  'work qty × rate (daily logs)',
-              fmtCr(actual), actualPct,
-              fmtPct(actualPct) + ' of revised')}
-      ${tile(varCls, variance >= 0 ? 'arrow-up-circle' : 'arrow-down-circle',
-              'Schedule Variance', varText,
-              varAmount, spiCapped,
-              `SPI ${spi.toFixed(2)}`)}
-      ${tile('warn', 'arrow-down-circle', 'Mobilization Advance', 'recovery progress',
-              fmtCr(advTotal), advRecoveredPct,
-              fmtCr(advRecovered) + ' recovered')}
-      ${tile('info', 'hourglass-split',   'Advance Balance',     'still to recover',
+      ${tile('good', 'percent',           'Financial Progress', 'bill + advance vs contract',
+              fmtCr(finAmount), finPct,
+              `${fmtPct(finPct)} of contract`)}
+      ${tile('info', 'receipt-cutoff',    'Bill Amount',        'manual entry (IPC tab)',
+              fmtCr(bill), billPct,
+              contract ? `${fmtPct(billPct)} of contract` : 'set contract value')}
+      ${tile('warn', 'arrow-down-circle', 'Mobilization Advance', 'received',
+              fmtCr(advTotal), advPctOfContract,
+              advTotal ? `${fmtPct(advPctOfContract)} of contract` : 'no advance received')}
+      ${tile('',     'arrow-counterclockwise', 'Advance Recovered', 'deducted from IPCs',
+              fmtCr(advRecovered), advRecoveredPct,
+              advTotal ? `${fmtPct(advRecoveredPct)} of advance` : '—')}
+      ${tile('bad',  'hourglass-split',   'Advance Balance',    'still to recover',
               fmtCr(advBalance), advTotal ? Math.max(0, 100 - advRecoveredPct) : 0,
-              advTotal ? `of ${fmtCr(advTotal)} advance` : 'no advance received')}
+              advTotal ? `of ${fmtCr(advTotal)} advance` : '—')}
     </div>
     <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--text-3)">
       <i class="bi bi-info-circle" style="color:var(--accent)"></i>
-      <strong style="color:var(--text-1)">Planned</strong> uses the monthly plan filled in the
-      <a href="#" onclick="document.querySelector('[data-page=planning]').click();return false" style="color:var(--brand);font-weight:600">Planning</a> tab when available, otherwise falls back to a linear interpolation between project start and end.
-      <strong style="color:var(--text-1)">Advance</strong> values come from the
-      <a href="#" onclick="document.querySelector('[data-page=ipc]').click();return false" style="color:var(--brand);font-weight:600">IPC</a> tab.
+      <strong style="color:var(--text-1)">Financial Progress = (Bill Amount + Advance) ÷ Contract Value.</strong>
+      Update the Bill Amount and Advance figures in the
+      <a href="#" onclick="document.querySelector('[data-page=ipc]').click();return false" style="color:var(--brand);font-weight:600">IPC</a> tab — they flow here automatically.
     </div>`;
 }
 
@@ -8690,7 +8635,7 @@ window.addEventListener('hpmsDataUpdated', () => {
       if(raw){
         const data = JSON.parse(raw);
         data.ipcs = data.ipcs || [];
-        data.payment = data.payment || {advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
+        data.payment = data.payment || {billAmount:0, advanceAmount:0, advanceDate:'', advanceRecoveryPct:10, advanceRecovered:0};
         data.approvals = data.approvals || {};
         data.milestones = data.milestones || [];
         data.projectMilestones = data.projectMilestones || [];
