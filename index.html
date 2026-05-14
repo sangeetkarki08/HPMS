@@ -739,6 +739,34 @@ body.auth-locked{overflow:hidden;}
 }
 .ms-action-btn:hover{background:var(--bg-3);color:var(--text-1)}
 .ms-action-btn.delete:hover{color:var(--bad)}
+/* Inline-edit cells inside the schedule table */
+.ms-table input.ms-inline,
+.ms-table select.ms-inline{
+  width:100%;background:transparent;border:1px solid transparent;border-radius:5px;
+  padding:4px 6px;color:var(--text-1);font:inherit;font-size:12px;
+  font-family:inherit;outline:none;transition:border-color .12s,background .12s;
+}
+.ms-table input.ms-inline:hover,
+.ms-table select.ms-inline:hover{border-color:var(--line)}
+.ms-table input.ms-inline:focus,
+.ms-table select.ms-inline:focus{border-color:var(--brand);background:var(--bg-1)}
+.ms-table input.ms-inline.date{font-family:'JetBrains Mono';font-size:11px;width:120px}
+.ms-table input.ms-inline.name{font-weight:600;color:var(--text-1)}
+.ms-table input.ms-inline.name.indent-1{padding-left:18px;font-weight:500}
+.ms-table input.ms-inline.name.indent-2{padding-left:32px;font-weight:500;font-size:11.5px}
+.ms-table select.ms-inline.status{font-weight:600;font-size:11px;padding:4px 8px;width:110px}
+.ms-table select.ms-inline.status.planned{color:var(--text-3)}
+.ms-table select.ms-inline.status.in-progress{color:var(--warn)}
+.ms-table select.ms-inline.status.completed{color:var(--good)}
+.ms-table select.ms-inline.status.delayed{color:var(--bad)}
+.ms-prog-cell{display:flex;align-items:center;gap:6px;min-width:120px}
+.ms-prog-input{width:46px;text-align:right;background:transparent;border:1px solid var(--line);
+  border-radius:5px;padding:3px 5px;color:var(--text-1);font:600 11.5px 'JetBrains Mono',monospace;outline:none}
+.ms-prog-input:focus{border-color:var(--brand)}
+.ms-prog-bar{flex:1;height:6px;background:var(--bg-3);border-radius:3px;overflow:hidden;min-width:50px}
+.ms-prog-bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));transition:width .2s}
+.ms-prog-bar > i.done{background:linear-gradient(90deg,var(--good),#10b981)}
+.ms-prog-bar > i.late{background:linear-gradient(90deg,var(--bad),#dc2626)}
 .mid-summary{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;
   padding:14px 16px;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;
@@ -1257,7 +1285,7 @@ body.auth-locked{overflow:hidden;}
       <button class="tabs-scroll-btn" id="tabsScrollPrev" onclick="scrollTabs(-120)" title="Scroll left"><i class="bi bi-chevron-left"></i></button>
       <nav class="tabs" id="tabsNav">
         <button class="tab-btn active" data-page="setup"><i class="bi bi-gear-fill"></i> Setup</button>
-        <button class="tab-btn" data-page="milestones"><i class="bi bi-flag-fill"></i> Milestones</button>
+        <button class="tab-btn" data-page="milestones"><i class="bi bi-calendar-event-fill"></i> Scheduled</button>
         <button class="tab-btn" data-page="planning"><i class="bi bi-calendar-week"></i> Planning</button>
         <button class="tab-btn" data-page="log"><i class="bi bi-pencil-square"></i> Daily Log</button>
         <button class="tab-btn" data-page="resources"><i class="bi bi-people-fill"></i> Resources</button>
@@ -1363,11 +1391,11 @@ body.auth-locked{overflow:hidden;}
     <section class="page" id="page-milestones">
       <div class="page-head">
         <div>
-          <h1 class="page-title"><i class="bi bi-flag-fill"></i> Project Milestones</h1>
-          <div class="page-sub">Construction schedule activities with WBS codes, planned/actual dates, and progress tracking</div>
+          <h1 class="page-title"><i class="bi bi-calendar-event-fill"></i> Project Scheduled</h1>
+          <div class="page-sub">Construction schedule — edit planned/actual dates, status and progress % directly in the row</div>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="addMilestone()"><i class="bi bi-plus-lg"></i> Add Milestone</button>
+          <button class="btn btn-primary" onclick="addMilestone()"><i class="bi bi-plus-lg"></i> Add Schedule Activity</button>
           <button class="btn btn-ghost" onclick="exportMilestones()"><i class="bi bi-download"></i> Export</button>
         </div>
       </div>
@@ -2599,7 +2627,7 @@ const itemPct = (sid,i) => {
   if(!i.plannedQty) return 0;
   return Math.min(100, (itemActualQty(sid,i.id) / i.plannedQty) * 100);
 };
-const itemEarned = (sid,i) => (itemPct(sid,i)/100) * itemAmount(i);
+const itemEarned = (sid,i) => itemActualQty(sid, i.id) * (Number(i.rate)||0);
 const childrenOf = sid => state.structures.filter(s=>s.parentId===sid);
 const structAmountSelf = s => (s.items||[]).reduce((sum,i)=>sum+itemAmount(i), 0);
 const structAmount = s => structAmountSelf(s) + childrenOf(s.id).reduce((sum,c)=>sum+structAmount(c), 0);
@@ -2736,82 +2764,62 @@ function renderMidProject(){
     return;
   }
 
-  // Compute summary
-  let totalPlanned = 0, totalDone = 0;
+  // Compute summary — earned is sum(complete qty × rate), matching dashboard's projectEarned()
+  let totalEarned = 0;
   groups.forEach(s=>{
     (s.items||[]).forEach(i=>{
-      totalPlanned += (Number(i.plannedQty)||0) * (Number(i.rate)||0);
-      totalDone += (Number(i.startingQty)||0) * (Number(i.rate)||0);
+      totalEarned += itemActualQty(s.id, i.id) * (Number(i.rate)||0);
     });
   });
-  const overallPct = totalPlanned ? (totalDone/totalPlanned)*100 : 0;
+  const totalActivities = groups.reduce((s,x)=>s+(x.items||[]).length, 0);
 
   host.innerHTML = `
     <div class="mid-summary">
       <div class="mid-sum-item"><div class="mid-sum-label">Activities</div>
-        <div class="mid-sum-value">${groups.reduce((s,x)=>s+(x.items||[]).length, 0)}</div></div>
-      <div class="mid-sum-item"><div class="mid-sum-label">Total Planned (${ccy()})</div>
-        <div class="mid-sum-value">${fmt(totalPlanned)}</div></div>
+        <div class="mid-sum-value">${totalActivities}</div></div>
       <div class="mid-sum-item"><div class="mid-sum-label">Already Earned (${ccy()})</div>
-        <div class="mid-sum-value" style="color:var(--good)">${fmt(totalDone)}</div></div>
-      <div class="mid-sum-item"><div class="mid-sum-label">Overall % to Date</div>
-        <div class="mid-sum-value" style="color:var(--brand)">${overallPct.toFixed(1)}%</div>
-        <div class="bar" style="margin-top:6px;height:5px"><i style="width:${Math.min(100,overallPct)}%"></i></div></div>
+        <div class="mid-sum-value" style="color:var(--good)">${fmt(totalEarned)}</div>
+        <div style="font-size:10.5px;color:var(--text-3);margin-top:2px">matches dashboard earned value</div></div>
       <div class="mid-sum-item" style="display:flex;align-items:flex-end;gap:8px">
         <button class="btn btn-ghost btn-sm" onclick="resetAllStarting()"><i class="bi bi-arrow-counterclockwise"></i> Reset All</button>
       </div>
     </div>
     ${groups.map(s=>{
       const items = s.items;
-      const pcts = items.map(i=>{
-        const plan = Number(i.plannedQty)||0;
-        const done = Number(i.startingQty)||0;
-        return plan ? Math.min(100,(done/plan)*100) : 0;
-      });
-      const avgPct = pcts.length ? pcts.reduce((a,b)=>a+b,0)/pcts.length : 0;
       return `
         <div class="mid-structure">
           <div class="mid-struct-head">
             <div>
               <div class="mid-struct-name"><i class="bi bi-folder2-open"></i> ${escapeHtml(getStructPath(s))}</div>
-              <div class="mid-struct-sub">${items.length} activities · avg ${avgPct.toFixed(1)}% complete</div>
+              <div class="mid-struct-sub">${items.length} activities</div>
             </div>
-            <div class="mid-struct-pct" style="background:linear-gradient(90deg,var(--brand-soft),transparent);color:var(--brand)">${avgPct.toFixed(1)}%</div>
           </div>
           <table class="mid-table">
             <thead>
-              <tr><th>Activity</th><th class="num">Total Planned</th><th class="num">Planned Amount</th><th class="num">Already Done</th><th class="num">Earned Amount</th><th class="num">% Done</th><th></th></tr>
+              <tr>
+                <th>Activity</th>
+                <th class="num">Unit</th>
+                <th class="num">Complete Qty</th>
+                <th class="num">Rate (${ccy()})</th>
+                <th class="num">Amount (${ccy()})</th>
+              </tr>
             </thead>
             <tbody>
-              ${items.map((i,idx)=>{
-                const plan = Number(i.plannedQty)||0;
+              ${items.map(i=>{
                 const done = Number(i.startingQty)||0;
-                const pct = plan ? Math.min(100,(done/plan)*100) : 0;
-                const plannedAmt = plan * (Number(i.rate)||0);
                 const earnedAmt = done * (Number(i.rate)||0);
-                const cls = pct>=90?'good':pct>=50?'info':pct>0?'warn':'mut';
                 return `<tr>
                   <td>
                     <div class="mid-act-name">${escapeHtml(i.activity)}</div>
-                    <div class="mid-act-unit">${escapeHtml(i.unit)} · ${ccy()} ${fmt(i.rate)}/${escapeHtml(i.unit)}</div>
                   </td>
-                  <td class="num"><span class="mid-num-readonly">${fmt2(plan)}</span></td>
-                  <td class="num"><span class="mid-num-readonly">${fmt(plannedAmt)}</span></td>
+                  <td class="num"><span class="mid-num-readonly">${escapeHtml(i.unit)}</span></td>
                   <td class="num">
-                    <input type="number" step="0.01" value="${i.startingQty||''}" placeholder="0.00" min="0" max="${plan}"
+                    <input type="number" step="0.01" value="${i.startingQty||''}" placeholder="0.00" min="0"
                       oninput="updateStartingQty('${s.id}','${i.id}',this.value)"
                       class="mid-input">
                   </td>
-                  <td class="num"><span class="mid-num-readonly">${fmt(earnedAmt)}</span></td>
-                  <td class="num">
-                    <div class="mid-pct-cell">
-                      <div class="mid-bar"><i style="width:${pct}%;background:var(--${cls==='good'?'good':cls==='info'?'accent':cls==='warn'?'warn':'text-3'})"></i></div>
-                      <span class="mid-pct-text ${cls}">${pct.toFixed(1)}%</span>
-                    </div>
-                  </td>
-                  <td>
-                    ${pct < 100 ? `<button class="btn btn-ghost btn-xs" onclick="setStartingFull('${s.id}','${i.id}')" title="Mark as 100% complete"><i class="bi bi-check2-all"></i></button>` : '<i class="bi bi-check-circle-fill" style="color:var(--good)"></i>'}
-                  </td>
+                  <td class="num"><span class="mid-num-readonly">${fmt(i.rate)}</span></td>
+                  <td class="num"><span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmt(earnedAmt)}</span></td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -2819,14 +2827,6 @@ function renderMidProject(){
         </div>`;
     }).join('')}`;
   applyPermissions();
-}
-
-function setStartingFull(sid, iid){
-  const s = state.structures.find(x=>x.id===sid); if(!s) return;
-  const i = (s.items||[]).find(x=>x.id===iid); if(!i) return;
-  i.startingQty = Number(i.plannedQty) || 0;
-  save();
-  renderMidProject();
 }
 
 function resetAllStarting(){
@@ -2843,70 +2843,32 @@ let midRefreshTimer = null;
 function updateStartingQty(sid, iid, val){
   const s = state.structures.find(x=>x.id===sid); if(!s) return;
   const i = (s.items||[]).find(x=>x.id===iid); if(!i) return;
-  let v = Number(val) || 0;
-  if(i.plannedQty && v > i.plannedQty) v = Number(i.plannedQty);
-  i.startingQty = v;
+  i.startingQty = Number(val) || 0;
   save();
-  // Only refresh affected % cell + structure header to preserve input focus
-  const tr = document.querySelector(`input[oninput*="${iid}"]`)?.closest('tr');
+  // Inline-update the Amount cell for this row (preserves input focus)
+  const inputEl = document.querySelector(`input[oninput*="${iid}"]`);
+  const tr = inputEl ? inputEl.closest('tr') : null;
   if(tr){
-    const plan = Number(i.plannedQty)||0;
-    const done = Number(i.startingQty)||0;
-    const pct = plan ? Math.min(100,(done/plan)*100) : 0;
-    const cls = pct>=90?'good':pct>=50?'info':pct>0?'warn':'mut';
-    const pctCell = tr.children[3];
-    if(pctCell){
-      pctCell.innerHTML = `<div class="mid-pct-cell">
-        <div class="mid-bar"><i style="width:${pct}%;background:var(--${cls==='good'?'good':cls==='info'?'accent':cls==='warn'?'warn':'text-3'})"></i></div>
-        <span class="mid-pct-text ${cls}">${pct.toFixed(1)}%</span></div>`;
+    const amtCell = tr.children[4]; // Activity | Unit | Complete Qty | Rate | Amount
+    if(amtCell){
+      const earned = (Number(i.startingQty)||0) * (Number(i.rate)||0);
+      amtCell.innerHTML = `<span class="mid-num-readonly" style="color:var(--good);font-weight:700">${fmt(earned)}</span>`;
     }
   }
-  // Debounce full refresh of summary header
+  // Debounce: update the summary "Already Earned" total
   if(midRefreshTimer) clearTimeout(midRefreshTimer);
   midRefreshTimer = setTimeout(()=>{
-    // Update only the summary numbers (keep inputs intact)
-    const groups = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length);
-    let totalPlanned = 0, totalDone = 0;
-    groups.forEach(s2=>{
+    let totalEarned = 0;
+    state.structures.filter(s2=>s2.category!=='group' && (s2.items||[]).length).forEach(s2=>{
       (s2.items||[]).forEach(i2=>{
-        totalPlanned += (Number(i2.plannedQty)||0) * (Number(i2.rate)||0);
-        totalDone += (Number(i2.startingQty)||0) * (Number(i2.rate)||0);
+        totalEarned += itemActualQty(s2.id, i2.id) * (Number(i2.rate)||0);
       });
     });
-    const overallPct = totalPlanned ? (totalDone/totalPlanned)*100 : 0;
     const summary = document.querySelector('.mid-summary');
     if(summary){
-      const items = summary.querySelectorAll('.mid-sum-item .mid-sum-value');
-      if(items[2]) items[2].textContent = fmt(totalDone);
-      if(items[3]){
-        items[3].textContent = overallPct.toFixed(1)+'%';
-        const bar = items[3].nextElementSibling;
-        if(bar && bar.querySelector) {
-          const fill = bar.querySelector('i'); if(fill) fill.style.width = Math.min(100,overallPct)+'%';
-        }
-      }
-    }
-    // Update structure-level avg pct
-    const struct = state.structures.find(x=>x.id===sid);
-    if(struct){
-      const pcts = struct.items.map(i2=>{
-        const plan = Number(i2.plannedQty)||0;
-        const done = Number(i2.startingQty)||0;
-        return plan ? Math.min(100,(done/plan)*100) : 0;
-      });
-      const avg = pcts.length ? pcts.reduce((a,b)=>a+b,0)/pcts.length : 0;
-      // Find the structure header
-      const headers = document.querySelectorAll('.mid-struct-name');
-      headers.forEach(h => {
-        if(h.textContent.includes(struct.name)){
-          const sub = h.nextElementSibling;
-          if(sub && sub.classList.contains('mid-struct-sub')){
-            sub.textContent = `${struct.items.length} activities · avg ${avg.toFixed(1)}% complete`;
-          }
-          const pctEl = h.parentElement.parentElement.querySelector('.mid-struct-pct');
-          if(pctEl) pctEl.textContent = avg.toFixed(1)+'%';
-        }
-      });
+      const valEls = summary.querySelectorAll('.mid-sum-item .mid-sum-value');
+      // Order: Activities, Already Earned
+      if(valEls[1]) valEls[1].textContent = fmt(totalEarned);
     }
   }, 200);
 }
@@ -4133,8 +4095,8 @@ function renderMilestones(){
       const delayed = ms.filter(m=>m.status==='delayed').length;
       const planned = ms.filter(m=>m.status==='planned').length;
       kpiHost.innerHTML = `<div class="kpi-grid">
-        <div class="kpi"><div class="kpi-label">Total Milestones</div>
-          <div class="kpi-value">${total}</div><div class="kpi-foot">activities tracked</div></div>
+        <div class="kpi"><div class="kpi-label">Total Activities</div>
+          <div class="kpi-value">${total}</div><div class="kpi-foot">scheduled tasks</div></div>
         <div class="kpi"><div class="kpi-label">Completed</div>
           <div class="kpi-value" style="color:var(--good)">${completed}</div>
           <div class="kpi-foot">${total?((completed/total)*100).toFixed(0):0}% of total</div></div>
@@ -4195,10 +4157,17 @@ function renderMilestones(){
     <div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px">
       <table class="ms-table">
         <thead><tr>
-          <th>WBS</th><th>Task Name</th><th>Duration</th>
-          <th>Planned Start</th><th>Planned End</th>
-          <th>Actual Start</th><th>Actual End</th>
-          <th>Status</th><th>Timeline</th><th></th>
+          <th style="width:50px">WBS</th>
+          <th style="min-width:220px">Task Name</th>
+          <th style="width:60px">Dur</th>
+          <th style="width:128px">Planned Start</th>
+          <th style="width:128px">Planned End</th>
+          <th style="width:128px">Actual Start</th>
+          <th style="width:128px">Actual End</th>
+          <th style="width:140px">Progress %</th>
+          <th style="width:120px">Status</th>
+          <th>Timeline</th>
+          <th style="width:36px"></th>
         </tr></thead>
         <tbody>
           ${filtered.map(m=>{
@@ -4206,6 +4175,12 @@ function renderMilestones(){
             const ind = Math.min(2, indent);
             const isSummary = String(m.wbs||'').match(/^\d+(\.\d+)?$/) && ms.some(x=>x.parentWbs===m.wbs || (x.wbs && x.wbs.startsWith(m.wbs+'.')));
             const dur = m.duration || (m.plannedStart && m.plannedEnd ? Math.round((new Date(m.plannedEnd) - new Date(m.plannedStart))/86400000) : '');
+            const progRaw = (m.progress !== undefined && m.progress !== null && m.progress !== '')
+              ? Number(m.progress)
+              : (m.status==='completed' ? 100 : 0);
+            const prog = Math.max(0, Math.min(100, isNaN(progRaw) ? 0 : progRaw));
+            const isLate = m.plannedEnd && new Date(m.plannedEnd) < today && prog < 100;
+            const progClass = prog>=100 ? 'done' : (isLate ? 'late' : '');
             let barHtml = '';
             if(m.plannedStart && m.plannedEnd){
               const ps = positionPct(m.plannedStart);
@@ -4222,19 +4197,38 @@ function renderMilestones(){
             if(today >= minDate && today <= maxDate){
               barHtml += `<div class="ms-bar-today" style="left:${todayPct}%"></div>`;
             }
-            const statusIcons = {planned:'circle', 'in-progress':'arrow-clockwise', completed:'check-circle-fill', delayed:'exclamation-triangle-fill'};
-            return `<tr class="${isSummary?'ms-summary-row':''}">
+            return `<tr class="${isSummary?'ms-summary-row':''}" data-mid="${m.id}">
               <td class="ms-wbs">${escapeHtml(m.wbs||'')}</td>
-              <td><div class="ms-name indent-${ind}">${escapeHtml(m.name)}</div></td>
+              <td><input type="text" class="ms-inline name indent-${ind}" value="${escapeHtml(m.name)}"
+                  onchange="updateMilestoneField('${m.id}','name',this.value)"></td>
               <td class="ms-dur">${dur?dur+'d':''}</td>
-              <td class="ms-date">${m.plannedStart||''}</td>
-              <td class="ms-date">${m.plannedEnd||''}</td>
-              <td class="ms-date" style="color:${m.actualStart?'var(--good)':'var(--text-3)'}">${m.actualStart||'—'}</td>
-              <td class="ms-date" style="color:${m.actualEnd?'var(--good)':'var(--text-3)'}">${m.actualEnd||'—'}</td>
-              <td><span class="ms-status ${m.status}"><i class="bi bi-${statusIcons[m.status]||'circle'}"></i> ${m.status}</span></td>
+              <td><input type="date" class="ms-inline date" value="${m.plannedStart||''}"
+                  onchange="updateMilestoneField('${m.id}','plannedStart',this.value)"></td>
+              <td><input type="date" class="ms-inline date" value="${m.plannedEnd||''}"
+                  onchange="updateMilestoneField('${m.id}','plannedEnd',this.value)"></td>
+              <td><input type="date" class="ms-inline date" value="${m.actualStart||''}"
+                  onchange="updateMilestoneField('${m.id}','actualStart',this.value)"></td>
+              <td><input type="date" class="ms-inline date" value="${m.actualEnd||''}"
+                  onchange="updateMilestoneField('${m.id}','actualEnd',this.value)"></td>
+              <td>
+                <div class="ms-prog-cell">
+                  <input type="number" min="0" max="100" step="1" class="ms-prog-input" value="${prog}"
+                    onchange="updateMilestoneField('${m.id}','progress',this.value)">
+                  <div class="ms-prog-bar"><i class="${progClass}" style="width:${prog}%"></i></div>
+                </div>
+              </td>
+              <td>
+                <select class="ms-inline status ${m.status||'planned'}"
+                  onchange="updateMilestoneField('${m.id}','status',this.value)">
+                  <option value="planned" ${m.status==='planned'?'selected':''}>Planned</option>
+                  <option value="in-progress" ${m.status==='in-progress'?'selected':''}>In Progress</option>
+                  <option value="completed" ${m.status==='completed'?'selected':''}>Completed</option>
+                  <option value="delayed" ${m.status==='delayed'?'selected':''}>Delayed</option>
+                </select>
+              </td>
               <td class="ms-bar-cell"><div class="ms-bar">${barHtml}</div></td>
               <td>
-                <button class="ms-action-btn" onclick="editMilestone('${m.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+                <button class="ms-action-btn delete" onclick="deleteMilestoneInline('${m.id}')" title="Delete"><i class="bi bi-trash"></i></button>
               </td>
             </tr>`;
           }).join('')}
@@ -4242,6 +4236,55 @@ function renderMilestones(){
       </table>
     </div>`;
   applyPermissions();
+}
+
+/* Inline field update for the Scheduled table — autosyncs status with progress */
+function updateMilestoneField(id, field, value){
+  const m = state.milestones.find(x=>x.id===id);
+  if(!m) return;
+  if(field === 'progress'){
+    let v = Math.max(0, Math.min(100, Number(value)||0));
+    m.progress = v;
+    // Sync status from progress
+    if(v >= 100){
+      m.status = 'completed';
+      if(!m.actualEnd) m.actualEnd = new Date().toISOString().slice(0,10);
+    } else if(v > 0){
+      if(m.status==='planned' || m.status==='completed') m.status = 'in-progress';
+      if(!m.actualStart) m.actualStart = new Date().toISOString().slice(0,10);
+    } else {
+      // back to zero — only reset if it was completed
+      if(m.status==='completed') m.status = 'planned';
+    }
+  } else if(field === 'status'){
+    m.status = value;
+    // Sync progress reasonable defaults on explicit status changes
+    if(value==='completed'){
+      m.progress = 100;
+      if(!m.actualEnd) m.actualEnd = new Date().toISOString().slice(0,10);
+    } else if(value==='in-progress' && (!m.progress || m.progress===0)){
+      m.progress = 5;
+      if(!m.actualStart) m.actualStart = new Date().toISOString().slice(0,10);
+    } else if(value==='planned'){
+      // keep progress as-is (user may want to revert without losing data)
+    }
+  } else {
+    m[field] = value;
+    // Recompute duration if planned dates changed
+    if((field==='plannedStart' || field==='plannedEnd') && m.plannedStart && m.plannedEnd){
+      m.duration = Math.round((new Date(m.plannedEnd)-new Date(m.plannedStart))/86400000);
+    }
+  }
+  save();
+  renderMilestones();
+}
+
+function deleteMilestoneInline(id){
+  if(!confirm('Delete this schedule activity?')) return;
+  state.milestones = state.milestones.filter(x=>x.id!==id);
+  save();
+  renderMilestones();
+  toast('Schedule activity deleted','good');
 }
 
 let editingMilestone = null;
