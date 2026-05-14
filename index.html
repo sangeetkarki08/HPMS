@@ -1935,6 +1935,15 @@ body.auth-locked{overflow:hidden;}
         </div>
         <div class="card-body" id="costBreakdownHost"></div>
       </div>
+
+      <!-- Financial Progress: Plan vs Actual & Mobilization Advance -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-graph-up-arrow" style="margin-right:6px;color:var(--brand)"></i> Financial Progress &amp; Advance</h3>
+          <span style="font-size:11px;color:var(--text-3)" id="finProgSubText">planned vs actual · mobilization advance recovery</span>
+        </div>
+        <div class="card-body" id="finProgressHost"></div>
+      </div>
       <div class="card" style="margin-bottom:18px" id="linearCard">
         <div class="card-head">
           <h3><i class="bi bi-rulers" style="margin-right:6px;color:var(--brand)"></i> Length-wise Progress</h3>
@@ -7684,6 +7693,148 @@ function renderDashboard(){
   renderCustomLengthItems();
   renderPVA();
   renderCostBreakdown();
+  renderFinancialProgress();
+}
+
+/* ============================================================
+   FINANCIAL PROGRESS — planned vs actual + mobilization advance
+   ============================================================ */
+function plannedEarnedToDate(){
+  // Prefer monthly-plan data filled in by user; fall back to linear time
+  const todayMonth = new Date().toISOString().slice(0,7);
+  let planned = 0;
+  let hasAnyPlan = false;
+  (state.structures||[]).forEach(s=>{
+    if(s.category==='group') return;
+    (s.items||[]).forEach(i=>{
+      const rate = Number(i.rate)||0;
+      const mp = i.monthlyPlan || {};
+      const keys = Object.keys(mp);
+      if(keys.length) hasAnyPlan = true;
+      keys.forEach(k=>{
+        if(k <= todayMonth) planned += (Number(mp[k])||0) * rate;
+      });
+    });
+  });
+  if(hasAnyPlan) return {value: planned, source: 'monthly plan'};
+
+  // Fallback: linear interpolation between project start and end
+  const start = state.project.startDate;
+  const end = state.project.endDate;
+  const total = projectAmount();
+  if(!start || !end || !total) return {value: 0, source: 'no plan data'};
+  const ms0 = new Date(start).getTime();
+  const ms1 = new Date(end).getTime();
+  const now = Date.now();
+  if(now <= ms0) return {value: 0, source: 'linear (project not started)'};
+  if(now >= ms1) return {value: total, source: 'linear (past planned end)'};
+  return {value: total * ((now - ms0) / (ms1 - ms0)), source: 'linear (no plan data)'};
+}
+
+function renderFinancialProgress(){
+  const host = document.getElementById('finProgressHost');
+  if(!host) return;
+  const sub = document.getElementById('finProgSubText');
+
+  const baseline = Number(state.project.baselineCost) || 0;
+  const vo = Number(state.project.voCost) || 0;
+  const revised = (Number(state.project.revisedCost) || 0) || (baseline + vo) || projectAmount();
+  const actual = projectEarned();
+  const planResult = plannedEarnedToDate();
+  const planned = planResult.value;
+  const variance = actual - planned;
+  const spi = planned > 0 ? (actual / planned) : (actual > 0 ? 1.5 : 1);
+  const spiCapped = Math.min(150, spi * 100);
+
+  const advTotal = Number(state.payment?.advanceAmount) || 0;
+  const advRecovered = Number(state.payment?.advanceRecovered) || 0;
+  const advBalance = Math.max(0, advTotal - advRecovered);
+  const advRecoveredPct = advTotal ? Math.min(100, (advRecovered/advTotal)*100) : 0;
+
+  const pctOfRevised = v => revised ? Math.max(0, Math.min(100, (v/revised)*100)) : 0;
+  const plannedPct = pctOfRevised(planned);
+  const actualPct = pctOfRevised(actual);
+
+  // Variance status
+  let varCls, varText;
+  if(planned <= 0){
+    varCls = 'info'; varText = 'no planned data';
+  } else if(spi >= 1.05){
+    varCls = 'good'; varText = 'ahead of schedule';
+  } else if(spi >= 0.95){
+    varCls = 'info'; varText = 'on track';
+  } else if(spi >= 0.80){
+    varCls = 'warn'; varText = 'slightly behind';
+  } else {
+    varCls = 'bad'; varText = 'behind schedule';
+  }
+
+  if(sub){
+    sub.textContent = `planned source: ${planResult.source}` +
+      (advTotal ? ` · advance ${fmtPct(advRecoveredPct)} recovered` : '');
+  }
+
+  const R = 30, CIRC = 2 * Math.PI * R;
+  const donut = (p) => {
+    const clamped = Math.min(100, Math.max(0, p));
+    const off = CIRC * (1 - clamped/100);
+    return `<div class="lp-donut">
+      <svg viewBox="0 0 72 72">
+        <circle class="lp-donut-track" cx="36" cy="36" r="${R}"/>
+        <circle class="lp-donut-fill" cx="36" cy="36" r="${R}"
+          stroke-dasharray="${CIRC.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>
+      </svg>
+      <div class="lp-donut-pct">${p.toFixed(0)}%</div>
+    </div>`;
+  };
+
+  const tile = (clsName, icon, name, sub, amount, pctVal, statBelow) => `
+    <div class="lp-tile lp-${clsName}" title="${escapeHtml(name)} — ${escapeHtml(amount)}">
+      <div class="lp-tile-head">
+        <div class="lp-tile-icon"><i class="bi bi-${icon}"></i></div>
+        <div class="lp-tile-titles">
+          <div class="lp-tile-name">${escapeHtml(name)}</div>
+          <div class="lp-tile-cat">${escapeHtml(sub)}</div>
+        </div>
+      </div>
+      <div class="lp-tile-body">
+        ${donut(pctVal)}
+        <div class="lp-tile-stats">
+          <div class="done">${amount}</div>
+          <div class="total">${ccy()}</div>
+          <div class="remain">${statBelow}</div>
+        </div>
+      </div>
+    </div>`;
+
+  const varAmount = (variance >= 0 ? '+' : '−') + fmtCr(Math.abs(variance));
+
+  host.innerHTML = `
+    <div class="lp-tile-grid">
+      ${tile('info', 'calendar2-check', 'Planned to Date', 'per schedule',
+              fmtCr(planned), plannedPct,
+              fmtPct(plannedPct) + ' of revised')}
+      ${tile('good', 'check2-circle',   'Actual to Date',  'from daily logs',
+              fmtCr(actual), actualPct,
+              fmtPct(actualPct) + ' of revised')}
+      ${tile(varCls, variance >= 0 ? 'arrow-up-circle' : 'arrow-down-circle',
+              'Schedule Variance', varText,
+              varAmount, spiCapped,
+              `SPI ${spi.toFixed(2)}`)}
+      ${tile('warn', 'arrow-down-circle', 'Mobilization Advance', 'recovery progress',
+              fmtCr(advTotal), advRecoveredPct,
+              fmtCr(advRecovered) + ' recovered')}
+      ${tile('info', 'hourglass-split',   'Advance Balance',     'still to recover',
+              fmtCr(advBalance), advTotal ? Math.max(0, 100 - advRecoveredPct) : 0,
+              advTotal ? `of ${fmtCr(advTotal)} advance` : 'no advance received')}
+    </div>
+    <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--text-3)">
+      <i class="bi bi-info-circle" style="color:var(--accent)"></i>
+      <strong style="color:var(--text-1)">Planned</strong> uses the monthly plan filled in the
+      <a href="#" onclick="document.querySelector('[data-page=planning]').click();return false" style="color:var(--brand);font-weight:600">Planning</a> tab when available, otherwise falls back to a linear interpolation between project start and end.
+      <strong style="color:var(--text-1)">Advance</strong> values come from the
+      <a href="#" onclick="document.querySelector('[data-page=ipc]').click();return false" style="color:var(--brand);font-weight:600">IPC</a> tab.
+    </div>`;
 }
 
 /* ============================================================
