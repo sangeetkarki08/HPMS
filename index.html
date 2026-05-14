@@ -983,6 +983,66 @@ body.auth-locked{overflow:hidden;}
   .linear-row{grid-template-columns:1fr}
 }
 
+/* Length-wise progress — compact donut tiles (Dashboard) */
+.lp-tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.lp-tile{
+  background:var(--bg-2);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;position:relative;overflow:hidden;transition:all .18s;
+}
+.lp-tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+.lp-tile.lp-good::before{background:var(--good)}
+.lp-tile.lp-info::before{background:var(--accent)}
+.lp-tile.lp-warn::before{background:var(--warn)}
+.lp-tile.lp-bad::before{background:var(--bad)}
+.lp-tile:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--shadow-2)}
+.lp-tile-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.lp-tile-icon{
+  width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;
+  background:var(--brand-soft);color:var(--brand);font-size:17px;
+}
+.lp-tile.lp-good .lp-tile-icon{background:var(--good-soft);color:var(--good)}
+.lp-tile.lp-info .lp-tile-icon{background:var(--accent-soft);color:var(--accent)}
+.lp-tile.lp-warn .lp-tile-icon{background:var(--warn-soft);color:var(--warn)}
+.lp-tile.lp-bad .lp-tile-icon{background:var(--bad-soft);color:var(--bad)}
+.lp-tile-titles{flex:1;min-width:0}
+.lp-tile-name{
+  font-weight:700;font-size:13.5px;color:var(--text-1);line-height:1.25;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.lp-tile-cat{
+  font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;
+  font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.lp-tile-body{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.lp-donut{width:72px;height:72px;flex:none;position:relative}
+.lp-donut svg{transform:rotate(-90deg);width:100%;height:100%;display:block}
+.lp-donut-track{stroke:var(--bg-3);stroke-width:7;fill:none}
+.lp-donut-fill{stroke:var(--brand);stroke-width:7;fill:none;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.lp-tile.lp-good .lp-donut-fill{stroke:var(--good)}
+.lp-tile.lp-info .lp-donut-fill{stroke:var(--accent)}
+.lp-tile.lp-warn .lp-donut-fill{stroke:var(--warn)}
+.lp-tile.lp-bad .lp-donut-fill{stroke:var(--bad)}
+.lp-donut-pct{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font-family:'JetBrains Mono';font-weight:700;font-size:13px;color:var(--text-1);
+}
+.lp-tile-stats{display:flex;flex-direction:column;gap:1px;font-family:'JetBrains Mono';min-width:0}
+.lp-tile-stats .done{color:var(--brand);font-weight:700;font-size:16px;line-height:1.2}
+.lp-tile.lp-good .lp-tile-stats .done{color:var(--good)}
+.lp-tile.lp-info .lp-tile-stats .done{color:var(--accent)}
+.lp-tile.lp-warn .lp-tile-stats .done{color:var(--warn)}
+.lp-tile.lp-bad .lp-tile-stats .done{color:var(--bad)}
+.lp-tile-stats .total{color:var(--text-3);font-size:11px;line-height:1.4}
+.lp-tile-stats .remain{color:var(--text-2);font-size:10.5px;margin-top:3px}
+.lp-segs{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}
+.lp-seg{
+  background:var(--bg-3);border:1px solid var(--line);
+  padding:3px 8px;border-radius:6px;font-size:10px;font-family:'JetBrains Mono';
+  display:inline-flex;align-items:center;gap:6px;color:var(--text-2);
+}
+.lp-seg-name{color:var(--text-1);font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px}
+.lp-seg-pct{color:var(--brand);font-weight:700}
+
 /* Project Timeline */
 .timeline-grid{display:flex;flex-direction:column;gap:18px}
 .timeline-summary{
@@ -1877,8 +1937,8 @@ body.auth-locked{overflow:hidden;}
       </div>
       <div class="card" style="margin-bottom:18px" id="linearCard">
         <div class="card-head">
-          <h3><i class="bi bi-rulers" style="margin-right:6px;color:var(--brand)"></i> Length-wise Progress — Tunnels &amp; Linear Structures</h3>
-          <span style="font-size:11px;color:var(--text-3)" id="linearSubText">tunnels &amp; roads</span>
+          <h3><i class="bi bi-rulers" style="margin-right:6px;color:var(--brand)"></i> Length-wise Progress</h3>
+          <span style="font-size:11px;color:var(--text-3)" id="linearSubText">tunnels, roads &amp; linear works</span>
         </div>
         <div class="card-body" id="linearProgressHost"></div>
       </div>
@@ -2041,7 +2101,7 @@ body.auth-locked{overflow:hidden;}
             <option value="group">Grouping (no items)</option>
           </select>
         </div>
-        <div class="field"><label>Length (m) — for tunnel/road</label><input type="number" id="mLen" step="0.01" placeholder="e.g. 4820"></div>
+        <div class="field"><label>Length (m) — auto-tracks on Dashboard</label><input type="number" id="mLen" step="0.01" placeholder="e.g. 4820"></div>
         <div class="field" style="grid-column:1/-1"><label>Manual Weightage % (optional, blank = auto by amount)</label><input type="number" id="mWt" step="0.01" placeholder="Auto-computed from cost"></div>
       </div>
     </div>
@@ -3186,12 +3246,28 @@ function saveModal(){
   s.category = document.getElementById('mCat').value;
   const len = document.getElementById('mLen').value;
   const newLen = len ? Number(len) : null;
-  // Only auto-sync chainage item plannedQty when length changed and there's exactly ONE chainage item
-  // (Multiple chainage items mean the structure is broken into sub-segments — don't overwrite them)
-  if(newLen !== s.length && newLen != null){
+  let autoTracked = false;
+  // When length is set: keep any existing chainage in sync, or auto-create one so the
+  // structure shows on the Dashboard's Length-wise Progress card immediately.
+  if(newLen !== s.length && newLen != null && newLen > 0){
     const chainItems = (s.items||[]).filter(i => (i.unit||'').toLowerCase()==='m' && /length|advance|chainage/i.test(i.activity));
     if(chainItems.length === 1){
       chainItems[0].plannedQty = newLen;
+    } else if(chainItems.length === 0){
+      const newItem = {
+        id: uid(),
+        activity: 'Length Advance (chainage)',
+        unit: 'm',
+        plannedQty: newLen,
+        rate: 0,
+        startingQty: 0
+      };
+      s.items = s.items || [];
+      s.items.unshift(newItem);
+      state.selectedLengthItems = state.selectedLengthItems || [];
+      const key = `${s.id}:${newItem.id}`;
+      if(!state.selectedLengthItems.includes(key)) state.selectedLengthItems.push(key);
+      autoTracked = true;
     }
   }
   s.length = newLen;
@@ -3200,7 +3276,7 @@ function saveModal(){
   save();
   renderSetup();
   closeModal();
-  toast('Structure updated','good');
+  toast(autoTracked ? 'Length set — now tracked on Dashboard' : 'Structure updated','good');
 }
 
 /* ---- Daily Log ---- */
@@ -6831,53 +6907,56 @@ function renderLinearProgress(){
   if(chartsRow) chartsRow.style.display = '';
   document.getElementById('linearSubText').textContent = `${linear.length} linear ${linear.length===1?'structure':'structures'}`;
 
-  // Helper for chainage scale
-  const scaleMarks = total => {
-    const fmt = v => v >= 1000 ? (v/1000).toFixed(2)+' km' : Math.round(v)+' m';
-    return `<div class="chainage-scale">
-      <span>${fmt(0)}</span><span>${fmt(total*0.25)}</span><span>${fmt(total*0.5)}</span><span>${fmt(total*0.75)}</span><span>${fmt(total)}</span>
-    </div>`;
-  };
+  // Donut geometry
+  const DONUT_R = 30;
+  const DONUT_CIRC = 2 * Math.PI * DONUT_R;
 
-  host.innerHTML = `<div class="linear-grid">${linear.map(s=>{
+  host.innerHTML = `<div class="lp-tile-grid">${linear.map(s=>{
     const lp = getLinearProgress(s); if(!lp) return '';
     const cls = lp.pct >= 90 ? 'good' : lp.pct >= 60 ? 'info' : lp.pct >= 30 ? 'warn' : 'bad';
     const icon = s.category==='tunnel' ? 'rulers' : s.category==='road' ? 'sign-turn-right' : 'arrows-expand';
-    // If multiple chainage items, show segment breakdown
+    const offset = DONUT_CIRC * (1 - Math.min(1, Math.max(0, lp.pct/100)));
+    const catLabel = lp.items && lp.items.length > 1
+      ? `${s.category} · ${lp.items.length} segments`
+      : `${s.category} · chainage`;
     const segments = (lp.items && lp.items.length > 1) ? `
-      <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;font-size:10.5px">
+      <div class="lp-segs">
         ${lp.items.map(i=>{
           const done = itemActualQty(s.id, i.id);
           const tot = Number(i.plannedQty)||0;
           const p = tot ? Math.min(100,(done/tot)*100) : 0;
-          const segCls = p>=90?'var(--good)':p>=30?'var(--warn)':'var(--text-3)';
-          // Shorten activity name for pill
           const shortName = i.activity.replace(/—.*/, '').replace(/Excavation chainage.*/i,'').trim();
-          return `<span style="background:var(--bg-3);padding:3px 8px;border-radius:5px;font-family:ui-sans-serif;color:var(--text-2)">
-            <span style="color:${segCls};font-weight:700">${shortName}</span>
-            <span style="font-family:'JetBrains Mono';color:var(--text-3)"> ${fmt2(done)}/${fmt2(tot)}m (${p.toFixed(0)}%)</span>
+          return `<span class="lp-seg" title="${escapeHtml(i.activity)} — ${fmt2(done)}/${fmt2(tot)} m">
+            <span class="lp-seg-name">${escapeHtml(shortName)}</span>
+            <span class="lp-seg-pct">${p.toFixed(0)}%</span>
           </span>`;
         }).join('')}
       </div>` : '';
-    const metaText = lp.items && lp.items.length > 1
-      ? `<i class="bi bi-${icon}"></i> ${escapeHtml(s.category)} · ${lp.items.length} segments`
-      : `<i class="bi bi-${icon}"></i> ${escapeHtml(s.category)} · ${escapeHtml(lp.item.activity)}`;
     return `
-      <div class="linear-row">
-        <div>
-          <div class="linear-name">${escapeHtml(s.name)}</div>
-          <div class="linear-meta">${metaText}</div>
-        </div>
-        <div class="linear-bar-wrap">
-          <div class="bar bar-${cls}"><i style="width:${lp.pct}%"></i></div>
-          ${scaleMarks(lp.total)}
-          <div class="linear-stats">
-            <span class="completed"><i class="bi bi-check2-circle"></i> ${fmt2(lp.completed)} m completed</span>
-            <span class="pct">${fmtPct(lp.pct)}</span>
-            <span class="remaining">${fmt2(lp.remaining)} m to go</span>
+      <div class="lp-tile lp-${cls}" title="${escapeHtml(s.name)} — ${fmt2(lp.completed)} of ${fmt2(lp.total)} m">
+        <div class="lp-tile-head">
+          <div class="lp-tile-icon"><i class="bi bi-${icon}"></i></div>
+          <div class="lp-tile-titles">
+            <div class="lp-tile-name">${escapeHtml(s.name)}</div>
+            <div class="lp-tile-cat">${escapeHtml(catLabel)}</div>
           </div>
-          ${segments}
         </div>
+        <div class="lp-tile-body">
+          <div class="lp-donut">
+            <svg viewBox="0 0 72 72">
+              <circle class="lp-donut-track" cx="36" cy="36" r="${DONUT_R}"/>
+              <circle class="lp-donut-fill" cx="36" cy="36" r="${DONUT_R}"
+                stroke-dasharray="${DONUT_CIRC.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
+            </svg>
+            <div class="lp-donut-pct">${lp.pct.toFixed(0)}%</div>
+          </div>
+          <div class="lp-tile-stats">
+            <div class="done">${fmt2(lp.completed)} m</div>
+            <div class="total">of ${fmt2(lp.total)} m</div>
+            <div class="remain">${fmt2(lp.remaining)} m to go</div>
+          </div>
+        </div>
+        ${segments}
       </div>`;
   }).join('')}</div>`;
 
@@ -8254,6 +8333,60 @@ function toast(msg, kind='good'){
 }
 
 /* ---- Init ---- */
+/* Migration: ensure every length-bearing structure has an m-unit chainage item
+   so it appears on the Dashboard's Length-wise Progress card. Also retro-fixes
+   Bill 21 Access Road in workspaces saved before this change. */
+function migrateLengthTracking(){
+  let changed = false;
+  state.selectedLengthItems = state.selectedLengthItems || [];
+  (state.structures||[]).forEach(s=>{
+    // Retro-fix for Bill 21 — Access Road: ensure category, length, and starting progress
+    if(/Bill\s*21.*Access\s*Road/i.test(s.name||'')){
+      if(s.category !== 'road'){ s.category = 'road'; changed = true; }
+      if(!s.length || s.length <= 0){ s.length = 5000; changed = true; }
+      const existingChain = (s.items||[]).find(i =>
+        (i.unit||'').toLowerCase()==='m' && /length|advance|chainage/i.test(i.activity));
+      if(!existingChain){
+        const newItem = {
+          id: uid(),
+          activity: 'Road Length Advance (chainage)',
+          unit: 'm',
+          plannedQty: s.length || 5000,
+          rate: 0,
+          startingQty: 2350
+        };
+        s.items = s.items || [];
+        s.items.unshift(newItem);
+        const key = `${s.id}:${newItem.id}`;
+        if(!state.selectedLengthItems.includes(key)) state.selectedLengthItems.push(key);
+        changed = true;
+      }
+      return;
+    }
+    // Generic: any structure with a length but no m-unit chainage item gets one
+    if(s.length && Number(s.length) > 0 && s.category !== 'group'){
+      const hasChain = (s.items||[]).some(i =>
+        (i.unit||'').toLowerCase()==='m' && /length|advance|chainage/i.test(i.activity));
+      if(!hasChain){
+        const newItem = {
+          id: uid(),
+          activity: 'Length Advance (chainage)',
+          unit: 'm',
+          plannedQty: Number(s.length),
+          rate: 0,
+          startingQty: 0
+        };
+        s.items = s.items || [];
+        s.items.unshift(newItem);
+        const key = `${s.id}:${newItem.id}`;
+        if(!state.selectedLengthItems.includes(key)) state.selectedLengthItems.push(key);
+        changed = true;
+      }
+    }
+  });
+  if(changed){ try{ save(); }catch(e){} }
+}
+
 const shouldAutoLoadMewaKhola = !localStorage.getItem(STORAGE_KEY) || (
   !state.structures.length && !state.ipcs.length && !state.logs.length && !state.milestones.length &&
   state.project.contractNo === 'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01'
@@ -8261,6 +8394,7 @@ const shouldAutoLoadMewaKhola = !localStorage.getItem(STORAGE_KEY) || (
 if(shouldAutoLoadMewaKhola){
   loadMewaKholaTemplate();
 } else {
+  migrateLengthTracking();
   renderProject();
   renderSetup();
   applyPermissions();
