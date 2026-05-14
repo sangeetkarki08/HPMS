@@ -2912,6 +2912,12 @@ function renderProject(){
       document.getElementById('projName').textContent = nm;
       document.getElementById('projMeta').textContent = meta;
     }
+    // Live-refresh the dashboard when financial / schedule fields change
+    if(['pContractValue','pBaselineCost','pVoCost','pRevisedCost','pStart','pEnd','pRevStart','pRevEnd'].includes(id)){
+      if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
+        renderDashboard();
+      }
+    }
   });
 });
 
