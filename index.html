@@ -1102,14 +1102,24 @@ body.auth-locked{overflow:hidden;}
 .lp-tile.lp-bad .lp-tile-stats .done{color:var(--bad)}
 .lp-tile-stats .total{color:var(--text-3);font-size:11px;line-height:1.4}
 .lp-tile-stats .remain{color:var(--text-2);font-size:10.5px;margin-top:3px}
-.lp-segs{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}
-.lp-seg{
-  background:var(--bg-3);border:1px solid var(--line);
-  padding:3px 8px;border-radius:6px;font-size:10px;font-family:'JetBrains Mono';
-  display:inline-flex;align-items:center;gap:6px;color:var(--text-2);
-}
-.lp-seg-name{color:var(--text-1);font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px}
-.lp-seg-pct{color:var(--brand);font-weight:700}
+.lp-segs{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:8px}
+.lp-segs-title{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:-2px}
+.lp-seg{display:flex;flex-direction:column;gap:4px}
+.lp-seg-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.lp-seg-name{color:var(--text-1);font-weight:600;font-size:11.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lp-seg-nums{font-family:'JetBrains Mono';font-size:11px;color:var(--text-2);white-space:nowrap}
+.lp-seg-nums b{color:var(--text-1);font-weight:700}
+.lp-seg-pct{font-family:'JetBrains Mono';font-weight:700;font-size:11.5px;min-width:38px;text-align:right}
+.lp-seg-pct.good{color:var(--good)}
+.lp-seg-pct.info{color:var(--accent)}
+.lp-seg-pct.warn{color:var(--warn)}
+.lp-seg-pct.bad{color:var(--bad)}
+.lp-seg-bar{height:6px;background:var(--bg-3);border-radius:4px;overflow:hidden}
+.lp-seg-bar > i{display:block;height:100%;border-radius:4px;background:var(--brand)}
+.lp-seg-bar.good > i{background:var(--good)}
+.lp-seg-bar.info > i{background:var(--accent)}
+.lp-seg-bar.warn > i{background:var(--warn)}
+.lp-seg-bar.bad > i{background:var(--bad)}
 
 /* Project Timeline */
 .timeline-grid{display:flex;flex-direction:column;gap:18px}
@@ -7052,15 +7062,21 @@ function renderLinearProgress(){
       : `${s.category} · chainage`;
     const segments = (lp.items && lp.items.length > 1) ? `
       <div class="lp-segs">
+        <div class="lp-segs-title">${lp.items.length} segments — length, complete &amp; %</div>
         ${lp.items.map(i=>{
           const done = itemActualQty(s.id, i.id);
           const tot = Number(i.plannedQty)||0;
           const p = tot ? Math.min(100,(done/tot)*100) : 0;
-          const shortName = i.activity.replace(/—.*/, '').replace(/Excavation chainage.*/i,'').trim();
-          return `<span class="lp-seg" title="${escapeHtml(i.activity)} — ${fmt2(done)}/${fmt2(tot)} m">
-            <span class="lp-seg-name">${escapeHtml(shortName)}</span>
-            <span class="lp-seg-pct">${p.toFixed(0)}%</span>
-          </span>`;
+          const segCls = p >= 90 ? 'good' : p >= 60 ? 'info' : p >= 30 ? 'warn' : 'bad';
+          const shortName = i.activity.replace(/—.*/, '').replace(/Excavation chainage.*/i,'').replace(/\(chainage\)/i,'').trim();
+          return `<div class="lp-seg" title="${escapeHtml(i.activity)}">
+            <div class="lp-seg-top">
+              <span class="lp-seg-name">${escapeHtml(shortName)}</span>
+              <span class="lp-seg-nums"><b>${fmt2(done)}</b> / ${fmt2(tot)} m</span>
+              <span class="lp-seg-pct ${segCls}">${p.toFixed(0)}%</span>
+            </div>
+            <div class="lp-seg-bar ${segCls}"><i style="width:${p}%"></i></div>
+          </div>`;
         }).join('')}
       </div>` : '';
     return `
