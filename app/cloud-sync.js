@@ -380,6 +380,35 @@
     else if (client) pullFromCloud(false);
   }
 
+  // ─── Always-fresh: pull on focus + periodic poll fallback ────────────────
+  // Realtime can silently drop (sleep/wake, flaky Wi-Fi, proxies). These
+  // make sure the app still converges to the latest data.
+
+  // (a) When the user returns to the app/tab, grab the latest immediately.
+  let lastFocusPull = 0;
+  function pullOnFocus() {
+    if (!client || !navigator.onLine) return;
+    const now = Date.now();
+    if (now - lastFocusPull < 3000) return; // de-dupe focus+visibility double fire
+    lastFocusPull = now;
+    pullFromCloud(false);
+    if (!channel) subscribe(); // re-arm realtime if it was lost
+  }
+  window.addEventListener('focus', pullOnFocus);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) pullOnFocus();
+  });
+
+  // (b) Lightweight periodic poll while the tab is visible and online.
+  //     Catches updates even if the realtime websocket died.
+  const POLL_MS = Math.max(8000, cfg.pollMs || 20000);
+  setInterval(() => {
+    if (!client || !navigator.onLine) return;
+    if (document.hidden) return;          // don't poll a backgrounded tab
+    if (readMeta().dirty) return;         // local edits pending → don't yank them
+    pullFromCloud(false);
+  }, POLL_MS);
+
   // ─── Register service worker ─────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

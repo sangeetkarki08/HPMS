@@ -20,6 +20,11 @@ window.HPMS_CONFIG = {
   // Lower = more "real time", but more requests. 2000ms is a good default.
   pushDebounceMs: 2000,
 
+  // Safety-net poll: how often to re-fetch the latest from the cloud
+  // while the tab is open (ms). Realtime is instant; this only covers
+  // cases where the realtime socket silently drops. Min 8000.
+  pollMs: 20000,
+
   // Show a banner when remote changes arrive (otherwise applies silently)
   showRemoteUpdateBanner: true
 };
