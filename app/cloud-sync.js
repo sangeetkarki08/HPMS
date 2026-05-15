@@ -1,19 +1,23 @@
 /*
-  HPMS Cloud Sync
-  ───────────────
-  Offline-first sync layer. The existing app keeps writing to
-  localStorage as it always has; this script transparently:
+  HPMS Cloud Sync — OFFLINE-FIRST (last-write-wins)
+  ─────────────────────────────────────────────────
+  The app always writes to localStorage and keeps working with no
+  network. This layer transparently:
 
-    1. Pushes localStorage changes to Supabase (debounced)
+    1. Pushes localStorage changes to Supabase (debounced) when online
     2. Subscribes to remote changes via Supabase Realtime
-    3. Applies remote changes to localStorage and reloads
-    4. Queues pushes when offline, retries on reconnect
+    3. Applies remote changes ONLY when they are newer than local
+       (last-write-wins by updated_at timestamp)
+    4. Queues the latest local state when offline; flushes on reconnect
+
+  Editing is NEVER blocked — offline edits are saved locally and
+  pushed automatically once the cloud is reachable again.
 
   The app needs ZERO source changes. We hook localStorage.setItem.
 
   Status UI:
-    - A small pill in the bottom-right shows: Offline / Synced / Syncing / Error
-    - Click it to force a pull, see workspace info, or change workspace
+    - A pill bottom-right: Offline (queued) / Synced / Syncing / Error
+    - Click it to force pull/push, see workspace info
 */
 
 (function () {
@@ -26,10 +30,9 @@
   const cfg = window.HPMS_CONFIG || {};
   const ENABLED = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && cfg.workspaceCode);
 
-  // Cloud-only mode: app starts read-only until the first cloud pull succeeds.
-  // Writes are gated by `writesAllowed`. Offline / failed sync = read-only.
-  let writesAllowed = false;
-  let lastReadOnlyBanner = 0;
+  // Offline-first: local writes are ALWAYS allowed and saved. `online`
+  // only reflects whether we can currently reach the cloud to sync.
+  let online = false;
 
   // ─── Device ID (so we ignore our own remote echoes) ──────────────────────
   let DEVICE_ID = localStorage.getItem(DEVICE_KEY);
@@ -103,12 +106,6 @@
     setTimeout(() => b.remove(), ms);
   }
 
-  function flashReadOnly(reason) {
-    const now = Date.now();
-    if (now - lastReadOnlyBanner < 4000) return;
-    lastReadOnlyBanner = now;
-    banner('Read-only: ' + reason + ' — changes not saved', 3200, 'warn');
-  }
 
   pill.addEventListener('click', () => {
     if (!ENABLED) {
@@ -143,28 +140,24 @@
     }
   });
 
-  // ─── Install write-blocker IMMEDIATELY ───────────────────────────────────
-  // Writes start disabled and only open up after a successful initial cloud
-  // pull. This guarantees the app is read-only until we know we're online
-  // AND in sync with the cloud. We hook setItem here (before init) so even
-  // the earliest save() call from the page is intercepted.
+  // ─── Hook localStorage.setItem (offline-first) ───────────────────────────
+  // Writes are ALWAYS persisted locally. We just stamp the local update
+  // time and schedule a debounced push. If offline, the push is queued
+  // (dirty flag) and flushed automatically on reconnect.
   const originalSetItem = localStorage.setItem;
   localStorage.setItem = function (key, value) {
-    if (key === STORAGE_KEY && !writesAllowed) {
-      flashReadOnly(navigator.onLine ? 'cloud not reachable' : 'offline');
-      return; // silently drop — last-known data stays visible
-    }
     originalSetItem.call(this, key, value);
     if (key === STORAGE_KEY) {
       writeMeta({ localUpdatedAt: Date.now(), dirty: true });
-      schedulePush();
+      if (ENABLED) schedulePush();
     }
   };
 
   if (!ENABLED) {
-    setStatus('readonly', 'Read-only (no cloud config)');
+    // No cloud configured — pure local/offline mode. Still fully editable.
+    setStatus('offline', 'Local only (no cloud)');
     document.addEventListener('DOMContentLoaded', () => {
-      banner('Cloud not configured — app is read-only. Fill config.js to enable saving.', 5000, 'bad');
+      banner('Cloud not configured — running local-only. Edits are saved on this device.', 4000, 'warn');
     });
     return;
   }
@@ -199,28 +192,27 @@
     try {
       await loadSupabase();
     } catch (e) {
-      console.warn('[HPMS Sync] Supabase SDK unavailable — read-only', e);
-      setStatus('readonly', 'Offline — read-only');
-      banner('Cannot reach Supabase SDK — read-only mode.', 3500, 'bad');
-      return;
+      console.warn('[HPMS Sync] Supabase SDK unavailable — working offline', e);
+      online = false;
+      setStatus('offline', 'Offline — edits queued');
+      return; // app stays fully editable; will retry on `online` event
     }
     client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
     if (!navigator.onLine) {
-      setStatus('readonly', 'Offline — read-only');
-      banner('Offline — read-only mode. Reconnect to save changes.', 3500, 'warn');
+      online = false;
+      setStatus('offline', 'Offline — edits queued');
       return;
     }
 
-    const ok = await pullFromCloud(false); // initial pull — gates writesAllowed
+    const ok = await pullFromCloud(false); // last-write-wins reconcile
     if (!ok) {
-      setStatus('readonly', 'Cloud unreachable — read-only');
-      banner('Cloud unreachable — read-only mode. Changes will not save.', 3500, 'bad');
-      return;
+      online = false;
+      setStatus('offline', 'Cloud unreachable — edits queued');
+      return; // still editable; reconnect handler retries
     }
+    online = true;
     subscribe();
-
-    writesAllowed = true;
     setStatus('synced', 'Synced');
     flushQueueIfDirty();
   }
@@ -238,37 +230,39 @@
 
       if (error) throw error;
       if (!data) {
-        // No cloud copy yet — push our local state as the initial seed.
-        // Temporarily allow the seed push so the workspace row gets created.
+        // No cloud copy yet — seed it with our local state.
         writeMeta({ lastPullAt: new Date().toISOString() });
-        const prev = writesAllowed;
-        writesAllowed = true;
         await pushToCloud(false);
-        writesAllowed = prev;
         return true;
       }
 
       const remoteAt = new Date(data.updated_at).getTime();
-      const localAt  = parseInt(readMeta().localUpdatedAt || '0', 10);
+      const meta     = readMeta();
+      const localAt  = parseInt(meta.localUpdatedAt || '0', 10);
+      const dirty    = !!meta.dirty;
 
-      // If remote is strictly newer than local — apply it
-      if (remoteAt > localAt) {
+      // Last-write-wins:
+      //  - remote newer than local AND we have no unpushed local edits
+      //    → take remote
+      //  - otherwise keep local (and push it if it's newer/dirty)
+      if (remoteAt > localAt && !dirty) {
         const stateStr = typeof data.state === 'string' ? data.state : JSON.stringify(data.state);
-        // Bypass our own setItem hook so this doesn't trigger a push loop
-        originalSetItem.call(localStorage, STORAGE_KEY, stateStr);
+        originalSetItem.call(localStorage, STORAGE_KEY, stateStr); // bypass push loop
         writeMeta({ lastPullAt: new Date().toISOString(), localUpdatedAt: remoteAt, dirty: false });
-        if (showBanner) banner('Pulled latest from cloud — reloading…');
-        // Dispatch event to update UI without reload
+        if (showBanner) banner('Pulled latest from cloud');
         window.dispatchEvent(new CustomEvent('hpmsDataUpdated'));
       } else {
         writeMeta({ lastPullAt: new Date().toISOString() });
+        // Local is newer or has queued edits — make sure cloud gets it
+        if (dirty || localAt > remoteAt) schedulePush();
       }
+      online = true;
       setStatus('synced', 'Synced');
       return true;
     } catch (e) {
-      console.warn('[HPMS Sync] Pull failed', e);
-      writesAllowed = false;
-      setStatus(navigator.onLine ? 'readonly' : 'offline', navigator.onLine ? 'Cloud unreachable — read-only' : 'Offline — read-only');
+      console.warn('[HPMS Sync] Pull failed — staying offline-editable', e);
+      online = false;
+      setStatus('offline', navigator.onLine ? 'Cloud unreachable — edits queued' : 'Offline — edits queued');
       return false;
     }
   }
@@ -283,8 +277,9 @@
   async function pushToCloud(force) {
     if (!client) return;
     if (!navigator.onLine) {
-      writesAllowed = false;
-      setStatus('readonly', 'Offline — read-only');
+      online = false;
+      writeMeta({ dirty: true }); // keep queued
+      setStatus('offline', 'Offline — edits queued');
       return;
     }
     setStatus('syncing', 'Pushing…');
@@ -311,14 +306,14 @@
           { onConflict: 'workspace_code' }
         );
       if (error) throw error;
+      online = true;
       writeMeta({ lastPushAt: new Date(now).toISOString(), localUpdatedAt: now, dirty: false });
       setStatus('synced', 'Synced');
     } catch (e) {
-      console.warn('[HPMS Sync] Push failed', e);
-      writeMeta({ dirty: true });
-      writesAllowed = false;
-      setStatus('readonly', 'Push failed — read-only');
-      banner('Cloud push failed — switching to read-only', 3000, 'bad');
+      console.warn('[HPMS Sync] Push failed — will retry on reconnect', e);
+      online = false;
+      writeMeta({ dirty: true }); // stays queued, NOT dropped
+      setStatus('offline', 'Push failed — edits queued');
     }
   }
 
@@ -351,19 +346,18 @@
   window.addEventListener('online', async () => {
     if (!client) return init();
     setStatus('syncing', 'Reconnecting…');
-    const ok = await pullFromCloud(false);
+    const ok = await pullFromCloud(false); // reconcile (last-write-wins)
     if (ok) {
-      writesAllowed = true;
-      setStatus('synced', 'Synced');
-      banner('Back online — saving enabled', 2200);
+      online = true;
       if (!channel) subscribe();
-      flushQueueIfDirty();
+      flushQueueIfDirty();          // push any edits made while offline
+      banner('Back online — syncing queued edits', 2200);
     }
   });
   window.addEventListener('offline', () => {
-    writesAllowed = false;
-    setStatus('readonly', 'Offline — read-only');
-    banner('Offline — read-only. Changes will not save.', 3000, 'warn');
+    online = false;
+    setStatus('offline', 'Offline — edits queued');
+    banner('Offline — edits saved locally, will sync when reconnected', 3000, 'warn');
   });
 
   function flushQueueIfDirty() {

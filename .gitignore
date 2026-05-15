@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Desktop build output (Electron / electron-builder)
+dist-desktop/
+dist/
+out/
+
+# Capacitor: generated web bundle + native projects (regenerate from source)
+www/
+android/
+ios/
+
+# Logs & OS cruft
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

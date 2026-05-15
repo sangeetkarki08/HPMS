@@ -1,0 +1,72 @@
+{
+  "name": "hpms",
+  "productName": "HPMS — Progress Tracking System",
+  "version": "1.0.0",
+  "description": "Construction Progress Monitoring System — offline-first desktop & mobile, real-time synced",
+  "author": "HPMS",
+  "license": "MIT",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dist": "electron-builder --win",
+    "dist:win": "electron-builder --win nsis msi",
+    "dist:portable": "electron-builder --win portable",
+    "build:web": "node scripts/build-web.js",
+    "cap:init": "node scripts/build-web.js && npx cap add android && npx cap add ios",
+    "cap:add:android": "node scripts/build-web.js && npx cap add android",
+    "cap:add:ios": "node scripts/build-web.js && npx cap add ios",
+    "cap:sync": "node scripts/build-web.js && npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "@capacitor/cli": "^6.1.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/ios": "^6.1.0"
+  },
+  "build": {
+    "appId": "com.hpms.progresstracking",
+    "productName": "HPMS",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "electron/**/*",
+      "index.html",
+      "cpms.html",
+      "config.js",
+      "sw.js",
+      "manifest.webmanifest",
+      "app/**/*",
+      "vendor/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "msi", "arch": ["x64"] }
+      ],
+      "icon": "app/icon.svg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HPMS"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Office"
+    }
+  }
+}

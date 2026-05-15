@@ -8,7 +8,7 @@
   to force clients to fetch fresh copies.
 */
 
-const CACHE_VERSION = 'hpms-v1';
+const CACHE_VERSION = 'hpms-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -16,7 +16,12 @@ const APP_SHELL = [
   './config.js',
   './app/cloud-sync.js',
   './app/icon.svg',
-  './manifest.webmanifest'
+  './manifest.webmanifest',
+  // Vendored libs so the PWA works fully offline (no CDN dependency)
+  './vendor/chart.umd.min.js',
+  './vendor/bootstrap-icons.css',
+  './vendor/fonts/bootstrap-icons.woff2',
+  './vendor/fonts/bootstrap-icons.woff'
 ];
 
 // Install: pre-cache the app shell

@@ -1,0 +1,15 @@
+{
+  "appId": "com.hpms.progresstracking",
+  "appName": "HPMS",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#0a0e14"
+  },
+  "ios": {
+    "backgroundColor": "#0a0e14",
+    "contentInset": "always"
+  }
+}

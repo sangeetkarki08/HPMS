@@ -1,11 +1,12 @@
-# HPMS — Progress Tracking System (Offline + Cloud Sync)
+# HPMS — Progress Tracking System (Offline-First Desktop + Mobile + Cloud Sync)
 
-Your existing Construction Progress Monitoring System, now with:
+Your Construction Progress Monitoring System ships three ways from **one codebase**:
 
-- **Works offline** — full functionality with no internet (Service Worker + localStorage)
-- **Real-time cloud sync** — when online, changes push to Supabase and propagate to other devices instantly
-- **Installable as an app** — Chrome/Edge users can "Install app" from the address bar
-- **Zero code changes to the original app** — sync hooks `localStorage` transparently
+- **Web / PWA** — open in a browser, installable from the address bar
+- **Desktop app** — Windows `.exe` / `.msi` installer (Electron), fully offline
+- **Mobile app** — native Android `.apk` / iOS build (Capacitor)
+
+All three are **offline-first**: you can always edit, even with no internet. Changes are saved locally and **auto-sync to every device in real time** (Supabase) the moment you're back online. Conflict rule: **last-write-wins** on the whole workspace document.
 
 ---
 
@@ -13,15 +14,23 @@ Your existing Construction Progress Monitoring System, now with:
 
 ```
 .
-├── index.html                ← your existing HPMS app + 4 lines of sync glue
-├── cpms.html                 ← your existing CPMS app + 4 lines of sync glue
-├── config.js                 ← put your Supabase URL + key here
+├── index.html                ← the app (loads vendored libs, works offline)
+├── cpms.html                 ← secondary app view
+├── config.js                 ← your Supabase URL + key + workspace code
 ├── manifest.webmanifest      ← PWA install metadata
-├── sw.js                     ← Service Worker (offline app shell)
-├── setup.sql                 ← run this in Supabase to create the DB schema
+├── sw.js                     ← Service Worker (offline app shell, v2)
+├── setup.sql                 ← run once in Supabase to create the DB schema
+├── package.json              ← Electron + Capacitor build scripts
+├── capacitor.config.json     ← mobile (Android/iOS) config
 ├── app/
-│   ├── cloud-sync.js         ← the brain: sync + realtime + status pill
+│   ├── cloud-sync.js         ← offline-first sync + realtime + status pill
 │   └── icon.svg              ← app icon
+├── electron/
+│   ├── main.js               ← desktop window (loads index.html offline)
+│   └── preload.js            ← minimal secure bridge
+├── scripts/
+│   └── build-web.js          ← assembles ./www for Capacitor (no deps)
+├── vendor/                   ← Chart.js + Bootstrap Icons (local = true offline)
 └── README.md                 ← this file
 ```
 
@@ -29,11 +38,12 @@ Your existing Construction Progress Monitoring System, now with:
 
 ## How it works (90-second tour)
 
-1. **Local first.** The app reads and writes `localStorage` exactly as it always did. Nothing about the original UI logic changed.
-2. **Transparent push.** `cloud-sync.js` overrides `localStorage.setItem`. Every save schedules a debounced push to Supabase (default 2 s).
-3. **Realtime pull.** The script subscribes to Postgres changes on your workspace row. When *another* device pushes, this device gets a banner ("Updates received…") and reloads with the fresh data.
-4. **Offline queue.** No network? Pushes are marked dirty and retried when `online` fires. The Service Worker means the app still loads.
-5. **Status pill (bottom-right).** Shows `Synced` / `Syncing…` / `Offline` / `Local only`. Click it to manually pull, push, or see sync info.
+1. **Local first.** The app reads and writes `localStorage` exactly as it always did. Editing is **never blocked** — offline or online.
+2. **Transparent push.** `cloud-sync.js` hooks `localStorage.setItem`. Every save stamps a local timestamp and schedules a debounced push to Supabase (default 2 s) when online.
+3. **Realtime pull.** The script subscribes to Postgres changes on your workspace row. When *another* device pushes, this device gets a banner ("Updates received…") and refreshes within ~1 s.
+4. **Offline queue.** No network? Edits are saved locally and marked dirty. They flush automatically when connectivity returns. The desktop/mobile app and the PWA all keep working.
+5. **Last-write-wins.** On reconnect, if the cloud is newer *and* you have no unpushed edits, the cloud copy is taken. Otherwise your local copy wins and is pushed. Whoever syncs last wins the whole document.
+6. **Status pill (bottom-right).** Shows `Synced` / `Syncing…` / `Offline — edits queued` / `Local only`. Click it to manually pull, push, or see sync info.
 
 ---
 
@@ -73,6 +83,68 @@ window.HPMS_CONFIG = {
 ```
 
 Done. Open `index.html` — the bottom-right pill should turn green and say **Synced**.
+
+---
+
+## Desktop app (Windows .exe / .msi) — Electron
+
+The desktop build wraps the same `index.html` and runs **fully offline** (all assets, including Chart.js and icons, are bundled — no CDN needed).
+
+### Prerequisites
+- [Node.js](https://nodejs.org) LTS (18+). Verify: `node -v` and `npm -v`.
+
+### Run in development
+```powershell
+npm install            # first time only — pulls Electron
+npm start              # opens the app in a desktop window
+```
+
+### Build the installer
+```powershell
+npm run dist:win       # builds NSIS .exe + .msi into dist-desktop/
+# or:
+npm run dist:portable  # single portable .exe (no install)
+```
+
+Output lands in **`dist-desktop/`**:
+- `HPMS Setup <version>.exe` — double-click to install (Start-menu + desktop shortcut)
+- `HPMS <version>.msi` — for managed/IT deployment
+- portable `.exe` — runs without installing
+
+> macOS/Linux: `npx electron-builder --mac` or `--linux` (config already included).
+
+The desktop app keeps the **same workspace** as the web/mobile — it reads `config.js`, so set your Supabase credentials there before building (or edit `config.js` and rebuild).
+
+---
+
+## Mobile app (Android / iOS) — Capacitor
+
+### Prerequisites
+- Node.js LTS
+- **Android:** [Android Studio](https://developer.android.com/studio) (gives you the SDK + emulator)
+- **iOS:** a Mac with **Xcode** (Apple requirement — iOS apps can't be built on Windows)
+
+### One-time setup
+```powershell
+npm install
+npm run cap:init        # builds ./www and adds android + ios platforms
+```
+(Use `npm run cap:add:android` alone if you only need Android.)
+
+### Build / run
+```powershell
+npm run cap:sync        # rebuild ./www and copy into native projects
+npm run cap:android     # opens Android Studio → press Run for emulator/device
+npm run cap:ios         # opens Xcode (macOS only) → press Run
+```
+
+To produce a shippable file:
+- **Android:** in Android Studio → *Build → Build Bundle(s)/APK(s) → Build APK* → `app-debug.apk` (or a signed release for the Play Store).
+- **iOS:** in Xcode → *Product → Archive* → distribute via TestFlight/App Store.
+
+After **any** change to `index.html` / `app/` / `vendor/`, re-run `npm run cap:sync` so the native app picks it up.
+
+> The mobile app uses the same offline-first sync. Open it on a phone, leave it on the **Dashboard** — it updates live as the desktop/web edits flow in.
 
 ---
 
@@ -117,11 +189,12 @@ Then open `http://localhost:8000`.
 | Scenario | What happens |
 |---|---|
 | **Open the app the first time online** | Pulls existing workspace data from Supabase (if any), caches the app shell |
-| **Lose internet mid-use** | Pill goes grey "Offline". You keep working normally. Saves are queued. |
-| **Reconnect** | Pill pulses "Syncing…", queued changes push, then settles "Synced" |
+| **Lose internet mid-use** | Pill shows "Offline — edits queued". **You keep editing normally** — nothing is blocked. |
+| **Reconnect** | Pill pulses "Syncing…", queued edits push (last-write-wins), then settles "Synced" |
 | **Another teammate edits on their device** | You get a banner "Updates received…" and the app refreshes within ~1 s |
-| **Install as an app** | In Chrome/Edge: address bar shows an install icon. Now it opens in its own window like a desktop app |
-| **Open offline next time** | App shell loads from cache; your local data is still in `localStorage` |
+| **Desktop app, fully offline for days** | Works 100% — all assets bundled. Every edit is saved; syncs the next time it sees the internet |
+| **Two devices edited the same workspace offline** | On reconnect, the device that syncs **last** overwrites — last-write-wins on the whole document |
+| **Open offline next time** | Desktop/mobile: loads instantly. PWA: app shell loads from cache; local data still in `localStorage` |
 
 ---
 
@@ -164,7 +237,10 @@ You can also back up directly from Supabase: **Table Editor → workspace_state 
   - RLS is blocking — re-run the policy section of `setup.sql`
 
 **Service Worker doesn't register**
-→ You're opening via `file://`. Use a local server (see "Option D" above).
+→ You're opening via `file://` in a browser. Use a local server (see "Option D" above). Note: the **desktop and mobile apps don't need the Service Worker** — their assets are bundled, so they're offline by default.
+
+**Charts/icons missing offline**
+→ Make sure the `vendor/` folder shipped with the app (it holds Chart.js + Bootstrap Icons locally). For the desktop/mobile builds it's bundled automatically; for the PWA it's cached by `sw.js` (v2).
 
 **Two devices not syncing in real time**
 → Realtime needs to be enabled on the table. The last line of `setup.sql` does this — make sure that statement ran successfully. Re-run it if unsure.
@@ -178,7 +254,7 @@ You can also back up directly from Supabase: **Table Editor → workspace_state 
 
 - **Per-record sync** (instead of one-document) — replace the JSONB column with proper tables (`projects`, `logs`, `ipcs`, etc.) and PowerSync. Bigger lift, better for huge datasets.
 - **Login + permissions** — switch on Supabase Auth, add the `workspace_members` table from `setup.sql`, gate policies on `auth.uid()`.
-- **Conflict resolution** — current strategy is last-write-wins on the whole doc. For collaborative editing, consider per-field timestamps or CRDTs.
+- **Conflict resolution** — current strategy is **last-write-wins on the whole document** (whoever syncs last wins). For finer-grained collaborative editing, consider per-field timestamps or CRDTs.
 
 ---
 
