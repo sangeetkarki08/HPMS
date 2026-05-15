@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HPMS — Construction Progress Monitoring System</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f59e0b">
@@ -870,6 +870,74 @@ body.auth-locked{overflow:hidden;}
   main{padding:14px}
   .page-title{font-size:20px}
   .struct.is-child{margin-left:14px}
+}
+
+/* ── Phone layout (≤640px): one-column, scrollable tables, full-width modals ── */
+@media(max-width:640px){
+  html,body{font-size:13.5px}
+  main{padding:12px}
+
+  /* Topbar: brand + actions on row 1, tabs scroll on row 2 */
+  .topbar{gap:10px;position:sticky;top:0}
+  .brand{flex:1 1 auto;min-width:0}
+  .proj-name{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tabs-wrap{order:3}
+  .tab-btn{padding:10px 14px;font-size:13px}      /* bigger tap targets */
+  .btn-icon{width:40px;height:40px}                /* easier to tap */
+
+  /* Page header stacks; action buttons go full-width */
+  .page-head{align-items:stretch;gap:10px;margin-bottom:16px;padding-bottom:12px}
+  .page-head > div:last-child{display:flex;flex-wrap:wrap;gap:8px}
+  .page-head .btn{flex:1 1 auto;justify-content:center}
+  .page-title{font-size:19px}
+
+  /* Every multi-column grid collapses to a single column */
+  .kpi-grid{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .lp-tile-grid{grid-template-columns:1fr;gap:10px}
+  .g2,.g3{grid-template-columns:1fr;gap:14px}
+  .form-grid{grid-template-columns:1fr !important}
+  .timeline-summary{grid-template-columns:1fr 1fr !important}
+
+  .card{border-radius:12px}
+  .card-body{padding:14px}
+  .card-head{flex-wrap:wrap;gap:6px}
+
+  /* Charts a touch shorter so they fit a phone screen */
+  .chart-wrap{height:240px}
+  .chart-wrap.tall{height:270px}
+  .chart-wrap.short{height:180px}
+
+  /* Any data table inside a card can scroll sideways instead of overflowing */
+  .card-body{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:520px}
+  /* …but the tables that already become stacked cards keep their own layout */
+  .mid-table,.items-table{min-width:0}
+
+  /* Modals: near-fullscreen sheet, body scrolls */
+  .modal-bd{padding:0;align-items:flex-end}
+  .modal{max-width:100%;width:100%;height:92vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column}
+  .modal-body{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
+  .modal-foot{flex-wrap:wrap}
+  .modal-foot .btn{flex:1 1 auto;justify-content:center}
+
+  /* Donut tiles: keep readable on narrow screens */
+  .lp-tile-body{gap:12px}
+  .lp-donut{width:60px;height:60px}
+  .lp-tile-stats .done{font-size:14px}
+
+  /* Sync pill smaller and lifted so it never covers content/buttons */
+  .hpms-sync-pill{bottom:10px;right:10px;padding:6px 10px;font-size:11px}
+  .toast-host{left:12px;right:12px;bottom:12px}
+  .toast{min-width:0;max-width:100%}
+}
+
+/* ── Small phones (≤430px) ── */
+@media(max-width:430px){
+  .kpi-grid{grid-template-columns:1fr}
+  .timeline-summary{grid-template-columns:1fr !important}
+  .page-title{font-size:18px}
+  .page-title i{font-size:18px}
+  .tab-btn span,.tab-btn{font-size:12.5px}
 }
 
 /* Segmented control */
@@ -2567,7 +2635,23 @@ function selectRole(r){
 }
 document.getElementById('modalRole').addEventListener('click', e=>{ if(e.target.id==='modalRole') closeRoleModal(); });
 
-const save = ()=>{ try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}catch(e){toast('Storage error: '+e.message,'bad');} };
+/* Persistence is debounced so rapid edits (typing in a field) don't
+   JSON.stringify the entire (large) state on every keystroke. The
+   in-memory `state` is always current; only the localStorage write
+   is coalesced. Pending writes are flushed before unload / tab hide
+   and before tab switches that need fresh persisted data. */
+let _saveTimer = null;
+function flushSave(){
+  if(_saveTimer){ clearTimeout(_saveTimer); _saveTimer = null; }
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch(e){ toast('Storage error: '+e.message,'bad'); }
+}
+const save = ()=>{
+  if(_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(flushSave, 400);
+};
+window.addEventListener('beforeunload', flushSave);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) flushSave(); });
 const uid = ()=>'i'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const fmt = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0'; return Math.round(n).toLocaleString(); };
 const fmt2 = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0.00'; return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };
@@ -2914,9 +2998,7 @@ function renderProject(){
     }
     // Live-refresh the dashboard when financial / schedule fields change
     if(['pContractValue','pBaselineCost','pVoCost','pRevisedCost','pStart','pEnd','pRevStart','pRevEnd'].includes(id)){
-      if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
-        renderDashboard();
-      }
+      scheduleDashboardRefresh();
     }
   });
 });
@@ -3045,9 +3127,7 @@ function updateStartingQty(sid, iid, val){
       // Order: Activities, Already Earned
       if(valEls[1]) valEls[1].textContent = fmtCr(totalEarned);
     }
-    if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
-      renderDashboard();
-    }
+    scheduleDashboardRefresh();
   }, 250);
 }
 
@@ -3142,10 +3222,8 @@ function updateItemField(sid, iid, key, value){
   // Refresh structure meta line
   refreshStructMeta(sid);
   updateTotalSummary();
-  // Live-refresh dashboard if it's open
-  if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
-    renderDashboard();
-  }
+  // Live-refresh dashboard if it's open (debounced)
+  scheduleDashboardRefresh();
 }
 
 function refreshStructMeta(sid){
@@ -3321,10 +3399,7 @@ function saveModal(){
   save();
   renderSetup();
   closeModal();
-  // Live-refresh dashboard if it's open
-  if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
-    renderDashboard();
-  }
+  scheduleDashboardRefresh();
   toast(autoTracked ? 'Length set — now tracked on Dashboard' : 'Structure updated','good');
 }
 
@@ -4142,10 +4217,8 @@ function updatePayment(key, val){
   state.payment[key] = (key==='advanceDate') ? val : (Number(val)||0);
   save();
   renderIPCKpis();
-  // Reflect changes on the Dashboard immediately if it's the active tab
-  if(document.getElementById('page-dashboard')?.classList.contains('active')){
-    renderDashboard();
-  }
+  // Reflect on Dashboard if open (debounced — avoids per-keystroke lag)
+  scheduleDashboardRefresh();
 }
 
 function renderIPCKpis(){
@@ -7525,6 +7598,7 @@ function chartBase(){
   const c = chartCols();
   return {
     responsive:true, maintainAspectRatio:false,
+    animation:false, animations:{colors:false, x:false, y:false}, transitions:{active:{animation:{duration:0}}},
     plugins:{
       legend:{labels:{color:c.text, font:{family:"'Plus Jakarta Sans'", size:11}, boxWidth:11, padding:12}},
       tooltip:{
@@ -7546,6 +7620,20 @@ function makeChart(id, cfg){
   const el = document.getElementById(id); if(!el) return;
   if(charts[id]) charts[id].destroy();
   charts[id] = new Chart(el, cfg);
+}
+
+/* Coalesce rapid edits (typing in Setup/IPC fields) into a single
+   dashboard re-render instead of rebuilding 8 charts per keystroke. */
+let _dashRefreshTimer = null;
+function scheduleDashboardRefresh(){
+  if(!document.getElementById('page-dashboard')?.classList.contains('active')) return;
+  if(_dashRefreshTimer) clearTimeout(_dashRefreshTimer);
+  _dashRefreshTimer = setTimeout(()=>{
+    _dashRefreshTimer = null;
+    if(document.getElementById('page-dashboard')?.classList.contains('active') && typeof renderDashboard === 'function'){
+      renderDashboard();
+    }
+  }, 500);
 }
 
 /* Compact dashboard view of Project Milestones (read-only, links to Scheduled tab) */
@@ -8660,6 +8748,9 @@ if(shouldAutoLoadMewaKhola){
 
 /* ---- Real-time updates ---- */
 window.addEventListener('hpmsDataUpdated', () => {
+  // A remote/cross-tab update just landed in localStorage. Drop any
+  // pending debounced local write so it can't clobber the fresh data.
+  if(_saveTimer){ clearTimeout(_saveTimer); _saveTimer = null; }
   // Reload state from localStorage
   state = (()=>{
     try{
