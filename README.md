@@ -245,8 +245,11 @@ You can also back up directly from Supabase: **Table Editor → workspace_state 
 **Two devices not syncing in real time**
 → Realtime needs to be enabled on the table. The last line of `setup.sql` does this — make sure that statement ran successfully. Re-run it if unsure.
 
-**App still has my old test data after pulling**
-→ The pull only overwrites if the cloud copy is *newer* than your local copy. To force-overwrite local with cloud, click the sync pill → type `pull`.
+**A device pulled an OLD version / my update got overwritten by another device**
+→ Fixed. The conflict rule no longer compares device clocks (unreliable across devices — that caused stale data to "win"). It now uses the **dirty flag**: a device with **no unpushed edits always adopts the cloud copy** and never pushes stale data back; a device **with** unpushed edits keeps and pushes them (last-write-wins by push order). If a device still shows something old, click the sync pill → type `pull` to force-take the cloud copy, or `push` from the device that has the correct data.
+
+**Both devices edited the same workspace at the same time**
+→ Whichever device's edit is pushed *last* wins the whole document (last-write-wins, as chosen). To avoid losing work, have one device finish and sync (pill = "Synced") before another starts editing offline.
 
 ---
 

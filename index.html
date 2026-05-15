@@ -2662,6 +2662,9 @@ const save = ()=>{
 };
 window.addEventListener('beforeunload', flushSave);
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) flushSave(); });
+// Let the cloud-sync layer flush pending local writes before it
+// evaluates whether this device has unpushed edits (dirty check).
+window.HPMS_flushSave = flushSave;
 const uid = ()=>'i'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const fmt = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0'; return Math.round(n).toLocaleString(); };
 const fmt2 = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0.00'; return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };

@@ -236,25 +236,40 @@
         return true;
       }
 
-      const remoteAt = new Date(data.updated_at).getTime();
-      const meta     = readMeta();
-      const localAt  = parseInt(meta.localUpdatedAt || '0', 10);
-      const dirty    = !!meta.dirty;
+      // Flush any debounced local write first so `dirty` truly reflects
+      // whether the user has unpushed edits (avoids losing a just-typed
+      // edit that hasn't hit localStorage yet).
+      try { if (typeof window.HPMS_flushSave === 'function') window.HPMS_flushSave(); } catch (_) {}
 
-      // Last-write-wins:
-      //  - remote newer than local AND we have no unpushed local edits
-      //    → take remote
-      //  - otherwise keep local (and push it if it's newer/dirty)
-      if (remoteAt > localAt && !dirty) {
-        const stateStr = typeof data.state === 'string' ? data.state : JSON.stringify(data.state);
-        originalSetItem.call(localStorage, STORAGE_KEY, stateStr); // bypass push loop
-        writeMeta({ lastPullAt: new Date().toISOString(), localUpdatedAt: remoteAt, dirty: false });
-        if (showBanner) banner('Pulled latest from cloud');
-        window.dispatchEvent(new CustomEvent('hpmsDataUpdated'));
+      const meta  = readMeta();
+      const dirty = !!meta.dirty;
+
+      // Conflict rule WITHOUT comparing wall clocks (clocks across
+      // devices/server are not reliable — that caused old data to
+      // resurrect). The dirty flag is the single source of truth:
+      //
+      //  - NOT dirty → this device has no unpushed user edits, so it
+      //    can never lose work by adopting the cloud copy. Always take
+      //    remote. This guarantees a passive/viewing device converges
+      //    to the latest and never pushes stale data back.
+      //  - dirty → this device has unpushed edits made by the user.
+      //    Keep them and push (last-write-wins: the most recent push
+      //    wins). We do not overwrite local, or the user loses work.
+      const remoteStr = typeof data.state === 'string' ? data.state : JSON.stringify(data.state);
+      const localStr  = localStorage.getItem(STORAGE_KEY);
+
+      if (!dirty) {
+        if (remoteStr !== localStr) {
+          originalSetItem.call(localStorage, STORAGE_KEY, remoteStr); // bypass push loop
+          writeMeta({ lastPullAt: new Date().toISOString(), dirty: false });
+          if (showBanner) banner('Pulled latest from cloud');
+          window.dispatchEvent(new CustomEvent('hpmsDataUpdated'));
+        } else {
+          writeMeta({ lastPullAt: new Date().toISOString(), dirty: false });
+        }
       } else {
         writeMeta({ lastPullAt: new Date().toISOString() });
-        // Local is newer or has queued edits — make sure cloud gets it
-        if (dirty || localAt > remoteAt) schedulePush();
+        schedulePush(); // push our unpushed edits
       }
       online = true;
       setStatus('synced', 'Synced');
