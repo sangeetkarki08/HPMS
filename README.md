@@ -6,7 +6,7 @@ Your Construction Progress Monitoring System ships three ways from **one codebas
 - **Desktop app** — Windows `.exe` / `.msi` installer (Electron), fully offline
 - **Mobile app** — native Android `.apk` / iOS build (Capacitor)
 
-All three are **offline-first**: you can always edit, even with no internet. Changes are saved locally and **auto-sync to every device in real time** (Supabase) the moment you're back online. Conflict rule: **last-write-wins** on the whole workspace document.
+All three are **cloud-authoritative / online-only**: the cloud (Supabase) is the single source of truth. Every device always **loads the latest** on open and **auto-syncs in real time**. Editing **requires internet** — when offline the app is **read-only**, so a stale local copy can never overwrite good cloud data. Conflict rule: the **last edit pushed wins**.
 
 ---
 
@@ -38,12 +38,12 @@ All three are **offline-first**: you can always edit, even with no internet. Cha
 
 ## How it works (90-second tour)
 
-1. **Local first.** The app reads and writes `localStorage` exactly as it always did. Editing is **never blocked** — offline or online.
-2. **Transparent push.** `cloud-sync.js` hooks `localStorage.setItem`. Every save stamps a local timestamp and schedules a debounced push to Supabase (default 2 s) when online.
-3. **Realtime pull.** The script subscribes to Postgres changes on your workspace row. When *another* device pushes, this device gets a banner ("Updates received…") and refreshes within ~1 s.
-4. **Offline queue.** No network? Edits are saved locally and marked dirty. They flush automatically when connectivity returns. The desktop/mobile app and the PWA all keep working.
-5. **Last-write-wins.** On reconnect, if the cloud is newer *and* you have no unpushed edits, the cloud copy is taken. Otherwise your local copy wins and is pushed. Whoever syncs last wins the whole document.
-6. **Status pill (bottom-right).** Shows `Synced` / `Syncing…` / `Offline — edits queued` / `Local only`. Click it to manually pull, push, or see sync info.
+1. **Cloud is the truth.** On every load `cloud-sync.js` fetches the cloud copy and the app shows that — never stale local data. A persisted offline queue from a previous session is ignored (that, plus device-clock comparison, is what used to make old data "come back").
+2. **Edit → push.** Edits made in the current session push to Supabase (debounced ~2 s). The device that pushed becomes the new cloud truth.
+3. **Realtime pull.** The script subscribes to Postgres changes. When another device pushes, this device pulls within ~1 s. Plus pull-on-focus and a periodic poll so it always converges to the latest.
+4. **Online-only.** No internet = **read-only**. Writes are refused (with a clear message) so a divergent local copy can't be created or pushed back later. Reconnect → it reloads the latest and editing re-enables.
+5. **Conflict = last push wins.** A device with no edits this session always adopts the cloud copy and never pushes; a device actively editing pushes its change. Whoever pushes last wins the whole document.
+6. **Status pill (bottom-right).** `Synced` / `Syncing…` / `Needs internet — read-only`. Click it: `pull` (force-take cloud), `push` (force-upload this device), `info`.
 
 ---
 
@@ -188,13 +188,13 @@ Then open `http://localhost:8000`.
 
 | Scenario | What happens |
 |---|---|
-| **Open the app the first time online** | Pulls existing workspace data from Supabase (if any), caches the app shell |
-| **Lose internet mid-use** | Pill shows "Offline — edits queued". **You keep editing normally** — nothing is blocked. |
-| **Reconnect** | Pill pulses "Syncing…", queued edits push (last-write-wins), then settles "Synced" |
-| **Another teammate edits on their device** | You get a banner "Updates received…" and the app refreshes within ~1 s |
-| **Desktop app, fully offline for days** | Works 100% — all assets bundled. Every edit is saved; syncs the next time it sees the internet |
-| **Two devices edited the same workspace offline** | On reconnect, the device that syncs **last** overwrites — last-write-wins on the whole document |
-| **Open offline next time** | Desktop/mobile: loads instantly. PWA: app shell loads from cache; local data still in `localStorage` |
+| **Open the app (online)** | Always loads the **latest** from Supabase — never stale local data |
+| **Lose internet mid-use** | Pill shows "Needs internet — read-only". Editing is disabled until you reconnect, so nothing diverges. Last loaded data stays on screen to view. |
+| **Reconnect** | Pill pulses "Syncing…", reloads the latest, editing re-enables |
+| **Another teammate edits on their device** | You get a banner and the app refreshes to their version within ~1 s |
+| **You edit & save (online)** | Pushes to the cloud immediately; every other device converges to it |
+| **Two devices edit at once** | Whoever's edit is **pushed last** wins the whole document |
+| **No internet at all** | App is read-only. It will not run on or push old local data — by design |
 
 ---
 

@@ -1,22 +1,25 @@
 /*
-  HPMS Cloud Sync — OFFLINE-FIRST (last-write-wins)
-  ─────────────────────────────────────────────────
-  The app always writes to localStorage and keeps working with no
-  network. This layer transparently:
+  HPMS Cloud Sync — CLOUD-AUTHORITATIVE (online-only)
+  ───────────────────────────────────────────────────
+  The cloud is the single source of truth. The app does NOT run on
+  stale local data:
 
-    1. Pushes localStorage changes to Supabase (debounced) when online
-    2. Subscribes to remote changes via Supabase Realtime
-    3. Applies remote changes ONLY when they are newer than local
-       (last-write-wins by updated_at timestamp)
-    4. Queues the latest local state when offline; flushes on reconnect
+    1. On every load it adopts the cloud copy (latest data always)
+    2. Editing requires internet — when offline / cloud unreachable
+       the app is READ-ONLY, so a stale local copy can never be
+       created or pushed back over good cloud data
+    3. Edits made this session push to the cloud immediately
+    4. Realtime + focus + periodic poll keep every device on the
+       latest; a device that didn't edit always takes the cloud copy
 
-  Editing is NEVER blocked — offline edits are saved locally and
-  pushed automatically once the cloud is reachable again.
+  A persisted "dirty" queue from a previous session is ignored on
+  load — that (and wall-clock comparison) is what used to make old
+  data resurrect. Conflict rule: last edit pushed wins.
 
   The app needs ZERO source changes. We hook localStorage.setItem.
 
   Status UI:
-    - A pill bottom-right: Offline (queued) / Synced / Syncing / Error
+    - Pill bottom-right: Synced / Syncing / Needs internet (read-only)
     - Click it to force pull/push, see workspace info
 */
 
@@ -30,9 +33,19 @@
   const cfg = window.HPMS_CONFIG || {};
   const ENABLED = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && cfg.workspaceCode);
 
-  // Offline-first: local writes are ALWAYS allowed and saved. `online`
-  // only reflects whether we can currently reach the cloud to sync.
+  // CLOUD-AUTHORITATIVE / ONLINE-ONLY:
+  //  - The cloud is the single source of truth. On every load the app
+  //    adopts the cloud copy; stale local data never wins.
+  //  - Editing requires internet. When offline / cloud unreachable the
+  //    app is read-only so a stale local copy can never be pushed back.
+  //  - `sessionDirty` is in-memory only (NOT persisted). It is true
+  //    only when the user edited during THIS session, after a fresh
+  //    cloud load. A persisted/stale dirty flag can never resurrect
+  //    old data because we ignore it.
   let online = false;
+  let writesAllowed = false;   // gates editing — true only after a fresh cloud pull
+  let sessionDirty = false;    // user edited in this session (in-memory, not persisted)
+  let lastBlockBanner = 0;
 
   // ─── Device ID (so we ignore our own remote echoes) ──────────────────────
   let DEVICE_ID = localStorage.getItem(DEVICE_KEY);
@@ -117,16 +130,17 @@
       return;
     }
     const choice = prompt(
-      'HPMS Sync — Workspace: ' + cfg.workspaceCode + '\n\n' +
+      'HPMS Sync — Workspace: ' + cfg.workspaceCode + '\n' +
+      'Cloud-authoritative · online-only\n\n' +
       'Type:\n' +
-      '  pull   – overwrite local data with cloud version\n' +
-      '  push   – overwrite cloud with local version\n' +
-      '  info   – show last sync time\n' +
+      '  pull   – reload the latest from the cloud (recommended)\n' +
+      '  push   – force-upload THIS device\'s data to the cloud\n' +
+      '  info   – show sync status\n' +
       '  (cancel to do nothing)'
     );
     if (!choice) return;
     const c = choice.trim().toLowerCase();
-    if (c === 'pull')      pullFromCloud(true);
+    if (c === 'pull')      { sessionDirty = false; pullFromCloud(true); } // force-take cloud
     else if (c === 'push') pushToCloud(true);
     else if (c === 'info') {
       const meta = readMeta();
@@ -135,20 +149,34 @@
         'Device ID: ' + DEVICE_ID + '\n' +
         'Last push: ' + (meta.lastPushAt || 'never') + '\n' +
         'Last pull: ' + (meta.lastPullAt || 'never') + '\n' +
-        'Dirty: ' + (meta.dirty ? 'yes (queued)' : 'no')
+        'Mode: cloud-authoritative (online-only)\n' +
+        'Editing: ' + (writesAllowed ? 'enabled' : 'read-only — needs internet') + '\n' +
+        'Unsaved this session: ' + (sessionDirty ? 'yes' : 'no')
       );
     }
   });
 
-  // ─── Hook localStorage.setItem (offline-first) ───────────────────────────
-  // Writes are ALWAYS persisted locally. We just stamp the local update
-  // time and schedule a debounced push. If offline, the push is queued
-  // (dirty flag) and flushed automatically on reconnect.
+  // ─── Hook localStorage.setItem (online-only gate) ────────────────────────
+  // App-state writes are allowed only after a fresh cloud load
+  // (writesAllowed). When offline / cloud unreachable the write is
+  // dropped so a stale local copy can never be created or pushed back.
   const originalSetItem = localStorage.setItem;
   localStorage.setItem = function (key, value) {
+    // Online-only: block app-state writes until we have a fresh cloud
+    // copy. This stops a stale local copy from ever being created or
+    // pushed back over good cloud data.
+    if (key === STORAGE_KEY && ENABLED && !writesAllowed) {
+      const now = Date.now();
+      if (now - lastBlockBanner > 3500) {
+        lastBlockBanner = now;
+        banner('Needs internet — connect to load & save the latest. Changes not saved.', 3200, 'warn');
+      }
+      return; // drop the write; last cloud-loaded data stays on screen
+    }
     originalSetItem.call(this, key, value);
     if (key === STORAGE_KEY) {
-      writeMeta({ localUpdatedAt: Date.now(), dirty: true });
+      sessionDirty = true;
+      writeMeta({ localUpdatedAt: Date.now() });
       if (ENABLED) schedulePush();
     }
   };
@@ -188,33 +216,42 @@
   let channel = null;
 
   async function init() {
+    // Never trust a persisted dirty/queue flag from a previous session —
+    // the cloud is authoritative on load.
+    sessionDirty = false;
+    writesAllowed = false;
+    writeMeta({ dirty: false });
+
     setStatus('syncing', 'Connecting…');
     try {
       await loadSupabase();
     } catch (e) {
-      console.warn('[HPMS Sync] Supabase SDK unavailable — working offline', e);
-      online = false;
-      setStatus('offline', 'Offline — edits queued');
-      return; // app stays fully editable; will retry on `online` event
+      console.warn('[HPMS Sync] Supabase SDK unavailable — read-only (needs internet)', e);
+      online = false; writesAllowed = false;
+      setStatus('offline', 'Needs internet — read-only');
+      banner('No internet — cannot load the latest. The app is read-only until you reconnect.', 4000, 'bad');
+      return;
     }
     client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
     if (!navigator.onLine) {
-      online = false;
-      setStatus('offline', 'Offline — edits queued');
+      online = false; writesAllowed = false;
+      setStatus('offline', 'Needs internet — read-only');
+      banner('No internet — read-only. Connect to load & edit the latest data.', 4000, 'bad');
       return;
     }
 
-    const ok = await pullFromCloud(false); // last-write-wins reconcile
+    const ok = await pullFromCloud(false); // cloud-authoritative adopt
     if (!ok) {
-      online = false;
-      setStatus('offline', 'Cloud unreachable — edits queued');
-      return; // still editable; reconnect handler retries
+      online = false; writesAllowed = false;
+      setStatus('offline', 'Cloud unreachable — read-only');
+      banner('Cannot reach the cloud — read-only. Retry when back online.', 4000, 'bad');
+      return;
     }
     online = true;
+    writesAllowed = true;          // editing enabled now that we have the latest
     subscribe();
     setStatus('synced', 'Synced');
-    flushQueueIfDirty();
   }
 
   // ─── Pull from cloud ─────────────────────────────────────────────────────
@@ -230,54 +267,53 @@
 
       if (error) throw error;
       if (!data) {
-        // No cloud copy yet — seed it with our local state.
+        // No cloud copy yet (brand-new workspace). Allow the app to
+        // seed locally and push that as the initial cloud copy.
+        writesAllowed = true;
         writeMeta({ lastPullAt: new Date().toISOString() });
-        await pushToCloud(false);
+        try { if (typeof window.HPMS_flushSave === 'function') window.HPMS_flushSave(); } catch (_) {}
+        await pushToCloud(true);
         return true;
       }
 
-      // Flush any debounced local write first so `dirty` truly reflects
-      // whether the user has unpushed edits (avoids losing a just-typed
-      // edit that hasn't hit localStorage yet).
+      // Make sure a just-typed edit has reached localStorage so
+      // sessionDirty/local comparison is accurate.
       try { if (typeof window.HPMS_flushSave === 'function') window.HPMS_flushSave(); } catch (_) {}
 
-      const meta  = readMeta();
-      const dirty = !!meta.dirty;
-
-      // Conflict rule WITHOUT comparing wall clocks (clocks across
-      // devices/server are not reliable — that caused old data to
-      // resurrect). The dirty flag is the single source of truth:
+      // CLOUD-AUTHORITATIVE. No wall-clock comparison, no trust of any
+      // persisted dirty flag (those caused old data to resurrect):
       //
-      //  - NOT dirty → this device has no unpushed user edits, so it
-      //    can never lose work by adopting the cloud copy. Always take
-      //    remote. This guarantees a passive/viewing device converges
-      //    to the latest and never pushes stale data back.
-      //  - dirty → this device has unpushed edits made by the user.
-      //    Keep them and push (last-write-wins: the most recent push
-      //    wins). We do not overwrite local, or the user loses work.
+      //  - sessionDirty === false → this browser session has made NO
+      //    edits. Always adopt the cloud copy. A freshly-loaded or
+      //    viewing device therefore always shows the latest and can
+      //    never push stale local data back over good cloud data.
+      //  - sessionDirty === true → the user is editing right now in
+      //    this session. Keep their edits and push them (last write
+      //    wins by push order). We never overwrite their in-progress
+      //    work with the remote copy.
       const remoteStr = typeof data.state === 'string' ? data.state : JSON.stringify(data.state);
       const localStr  = localStorage.getItem(STORAGE_KEY);
 
-      if (!dirty) {
+      if (!sessionDirty) {
         if (remoteStr !== localStr) {
-          originalSetItem.call(localStorage, STORAGE_KEY, remoteStr); // bypass push loop
+          originalSetItem.call(localStorage, STORAGE_KEY, remoteStr); // bypass write gate + push loop
           writeMeta({ lastPullAt: new Date().toISOString(), dirty: false });
-          if (showBanner) banner('Pulled latest from cloud');
+          if (showBanner) banner('Loaded latest from cloud');
           window.dispatchEvent(new CustomEvent('hpmsDataUpdated'));
         } else {
           writeMeta({ lastPullAt: new Date().toISOString(), dirty: false });
         }
       } else {
         writeMeta({ lastPullAt: new Date().toISOString() });
-        schedulePush(); // push our unpushed edits
+        schedulePush(); // push this session's edits
       }
       online = true;
       setStatus('synced', 'Synced');
       return true;
     } catch (e) {
-      console.warn('[HPMS Sync] Pull failed — staying offline-editable', e);
-      online = false;
-      setStatus('offline', navigator.onLine ? 'Cloud unreachable — edits queued' : 'Offline — edits queued');
+      console.warn('[HPMS Sync] Pull failed — read-only (needs internet)', e);
+      online = false; writesAllowed = false;
+      setStatus('offline', navigator.onLine ? 'Cloud unreachable — read-only' : 'Needs internet — read-only');
       return false;
     }
   }
@@ -291,13 +327,17 @@
 
   async function pushToCloud(force) {
     if (!client) return;
+    // Only push genuine edits made in this session (or an explicit
+    // first-run seed). Never push a stale/unedited local copy.
+    if (!force && !sessionDirty) { setStatus('synced', 'Synced'); return; }
+
     if (!navigator.onLine) {
-      online = false;
-      writeMeta({ dirty: true }); // keep queued
-      setStatus('offline', 'Offline — edits queued');
+      online = false; writesAllowed = false;
+      setStatus('offline', 'Needs internet — read-only');
+      banner('No internet — your change was not saved. Reconnect and re-enter it.', 3500, 'bad');
       return;
     }
-    setStatus('syncing', 'Pushing…');
+    setStatus('syncing', 'Saving…');
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       setStatus('synced', 'Synced');
@@ -322,13 +362,14 @@
         );
       if (error) throw error;
       online = true;
+      sessionDirty = false; // pushed — this session's edits are now the cloud truth
       writeMeta({ lastPushAt: new Date(now).toISOString(), localUpdatedAt: now, dirty: false });
       setStatus('synced', 'Synced');
     } catch (e) {
-      console.warn('[HPMS Sync] Push failed — will retry on reconnect', e);
-      online = false;
-      writeMeta({ dirty: true }); // stays queued, NOT dropped
-      setStatus('offline', 'Push failed — edits queued');
+      console.warn('[HPMS Sync] Save failed — needs internet', e);
+      online = false; writesAllowed = false;
+      setStatus('offline', 'Save failed — needs internet');
+      banner('Could not save to the cloud — check your internet and try again.', 3500, 'bad');
     }
   }
 
@@ -361,24 +402,19 @@
   window.addEventListener('online', async () => {
     if (!client) return init();
     setStatus('syncing', 'Reconnecting…');
-    const ok = await pullFromCloud(false); // reconcile (last-write-wins)
+    const ok = await pullFromCloud(false); // cloud-authoritative re-adopt
     if (ok) {
       online = true;
+      writesAllowed = true;        // editing re-enabled now we have the latest
       if (!channel) subscribe();
-      flushQueueIfDirty();          // push any edits made while offline
-      banner('Back online — syncing queued edits', 2200);
+      banner('Back online — loaded the latest', 2200);
     }
   });
   window.addEventListener('offline', () => {
-    online = false;
-    setStatus('offline', 'Offline — edits queued');
-    banner('Offline — edits saved locally, will sync when reconnected', 3000, 'warn');
+    online = false; writesAllowed = false;
+    setStatus('offline', 'Needs internet — read-only');
+    banner('Offline — read-only. Reconnect to load & edit the latest data.', 3000, 'bad');
   });
-
-  function flushQueueIfDirty() {
-    if (readMeta().dirty) pushToCloud(false);
-    else if (client) pullFromCloud(false);
-  }
 
   // ─── Always-fresh: pull on focus + periodic poll fallback ────────────────
   // Realtime can silently drop (sleep/wake, flaky Wi-Fi, proxies). These
@@ -405,7 +441,7 @@
   setInterval(() => {
     if (!client || !navigator.onLine) return;
     if (document.hidden) return;          // don't poll a backgrounded tab
-    if (readMeta().dirty) return;         // local edits pending → don't yank them
+    if (sessionDirty) return;             // user is editing now → don't yank it
     pullFromCloud(false);
   }, POLL_MS);
 
