@@ -1556,6 +1556,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         <h2 style="font-size:18px">Project Structures</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--text-3)" id="totalSummary">Total Amount: 0</span>
+          <button class="btn btn-soft" onclick="loadIPSAllDataTemplate()"><i class="bi bi-file-earmark-spreadsheet"></i> Load IPS-All BOQ</button>
           <button class="btn btn-primary" onclick="addStructure(null)"><i class="bi bi-plus-lg"></i> Add Top-Level Structure</button>
         </div>
       </div>
@@ -1659,6 +1660,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap" id="ipcActions">
           <button class="btn btn-ghost" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+          <button class="btn btn-primary" data-perm="ipc.create" onclick="createDprIpcDraft()"><i class="bi bi-link-45deg"></i> DPR to Next IPC</button>
           <button class="btn btn-soft" data-perm="ipc.create" onclick="addIPC()"><i class="bi bi-plus-lg"></i> New IPC</button>
         </div>
       </div>
@@ -2304,7 +2306,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
       </div>
       <div class="ipc-calc" id="ipcCalcBox"></div>
       <div class="form-grid" style="margin-top:14px">
-        <div class="field"><label>Status</label><select id="ipcStatus"><option value="draft">Draft</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="paid">Paid</option></select></div>
+        <div class="field"><label>Status</label><select id="ipcStatus"><option value="draft">Draft</option><option value="submitted">Submitted</option><option value="revised">Revised</option><option value="approved">Approved</option><option value="final">Final</option><option value="paid">Paid</option></select></div>
         <div class="field"><label>Approved Date</label><input type="date" id="ipcApprovedDate"></div>
         <div class="field"><label>Paid Date</label><input type="date" id="ipcPaidDate"></div>
         <div class="field"><label>Approved By</label><input type="text" id="ipcApprovedBy" placeholder="Project Manager name"></div>
@@ -2456,6 +2458,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
 <div class="toast-host" id="toastHost"></div>
 
 <script src="vendor/chart.umd.min.js"></script>
+<script src="app/ips-all-data.js"></script>
 <script>
 /* ============================================================
    HPMS — Data-driven Construction Progress Monitoring System
@@ -2911,7 +2914,20 @@ function loadTemplate(){
 }
 
 /* ---- Computations ---- */
-const itemAmount = i => (Number(i.plannedQty)||0) * (Number(i.rate)||0);
+const itemAmount = i => Number.isFinite(Number(i.boqAmount)) ? Number(i.boqAmount) : ((Number(i.plannedQty)||0) * (Number(i.rate)||0));
+const isVoItem = i => /^\s*(\[?VO\]?|variation)/i.test(String(i.activity||''));
+function syncProjectCostsFromItems(){
+  if(!state.project?.autoCostFromBoq) return;
+  let base = 0, vo = 0;
+  (state.structures||[]).forEach(s => (s.items||[]).forEach(i => {
+    if(isVoItem(i)) vo += itemAmount(i);
+    else base += itemAmount(i);
+  }));
+  state.project.baselineCost = base;
+  state.project.voCost = vo;
+  state.project.revisedCost = base + vo;
+  state.project.contractValue = base + vo;
+}
 const itemActualQty = (sid,iid) => {
   const s = state.structures.find(x=>x.id===sid);
   const i = s ? (s.items||[]).find(x=>x.id===iid) : null;
@@ -3226,6 +3242,16 @@ function addItem(sid){
   if(!s) return;
   const tpl = (ACTIVITY_TEMPLATES[s.category]||[])[0] || {activity:'New Activity',unit:'m³',rate:0};
   s.items.push({id: uid(), activity: tpl.activity, unit: tpl.unit, plannedQty: 0, rate: tpl.rate});
+  syncProjectCostsFromItems();
+  save(); renderSetup();
+}
+
+function addVOItem(sid){
+  const s = state.structures.find(s=>s.id===sid);
+  if(!s) return;
+  s.items.push({id: uid(), activity:'[VO] New Variation Item', unit:'qty', plannedQty:0, rate:0, boqAmount:0, startingQty:0});
+  state.project.autoCostFromBoq = true;
+  syncProjectCostsFromItems();
   save(); renderSetup();
 }
 
@@ -3237,6 +3263,7 @@ function bulkAddItems(sid){
   tpls.forEach(t=>{
     s.items.push({id: uid(), activity: t.activity, unit: t.unit, plannedQty: 0, rate: t.rate});
   });
+  syncProjectCostsFromItems();
   save(); renderSetup();
   toast(`${tpls.length} typical activities added — set quantities`,'good');
 }
@@ -3246,6 +3273,7 @@ function deleteItem(sid, iid){
   if(!s) return;
   s.items = s.items.filter(i=>i.id!==iid);
   state.logs = state.logs.filter(l => !(l.structureId===sid && l.itemId===iid));
+  syncProjectCostsFromItems();
   save(); renderSetup();
 }
 
@@ -3254,6 +3282,10 @@ function updateItemField(sid, iid, key, value){
   const i = s.items.find(i=>i.id===iid); if(!i) return;
   if(key==='plannedQty' || key==='rate') value = Number(value)||0;
   i[key] = value;
+  if(key==='plannedQty' || key==='rate'){
+    i.boqAmount = (Number(i.plannedQty)||0) * (Number(i.rate)||0);
+  }
+  syncProjectCostsFromItems();
   // If a chainage m-unit item's plannedQty changed, sync s.length to the new total
   // so the dashboard donut shows the right denominator.
   if(key==='plannedQty' && (i.unit||'').toLowerCase()==='m' && /length|advance|chainage/i.test(i.activity||'')){
@@ -3295,6 +3327,13 @@ function updateTotalSummary(){
   if(el) el.textContent = `Total Project Amount: ${ccy()} ${fmt(projectAmount())}`;
 }
 
+function formatIpcHistoryTitle(item){
+  const rows = (item.ipcHistory||[])
+    .filter(x => Number(x.qty) || Number(x.amount))
+    .map(x => `IPC ${x.no}: ${fmt2(Number(x.qty)||0)} ${item.unit||''} / ${ccy()} ${fmt(Number(x.amount)||0)}`);
+  return rows.length ? rows.join('\n') : 'No IPC quantity recorded up to IPC 11';
+}
+
 /* ---- Render Setup ---- */
 function renderSetup(){
   const host = document.getElementById('structHost');
@@ -3307,6 +3346,7 @@ function renderSetup(){
         <div class="empty-sub">Add structures manually or load the hydropower template to start.</div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
           <button class="btn btn-soft" onclick="loadTemplate()"><i class="bi bi-magic"></i> Load Template</button>
+          <button class="btn btn-primary" onclick="loadIPSAllDataTemplate()"><i class="bi bi-file-earmark-spreadsheet"></i> Load IPS-All BOQ</button>
           <button class="btn btn-primary" onclick="addStructure(null)"><i class="bi bi-plus-lg"></i> Add Structure</button>
         </div>
       </div>`;
@@ -3324,6 +3364,7 @@ function renderSetup(){
           <th class="num" style="width:120px">Planned Qty</th>
           <th class="num" style="width:110px">Rate (${ccy()})</th>
           <th class="num" style="width:140px">Amount</th>
+          <th class="num" style="width:150px">IPC to Date</th>
           <th style="width:32px" title="Track on Dashboard"><i class="bi bi-graph-up-arrow" style="color:var(--brand)"></i></th>
           <th class="actions-cell"></th>
         </tr></thead>
@@ -3340,6 +3381,10 @@ function renderSetup(){
               <td><input type="number" class="num-input" step="0.01" value="${i.plannedQty}" onchange="updateItemField('${s.id}','${i.id}','plannedQty',this.value)"></td>
               <td><input type="number" class="num-input" step="0.01" value="${i.rate}" onchange="updateItemField('${s.id}','${i.id}','rate',this.value)"></td>
               <td class="num mono" data-amt="${i.id}">${fmt(itemAmount(i))}</td>
+              <td class="num mono" title="${escapeHtml(formatIpcHistoryTitle(i))}">
+                <div>${fmt2(Number(i.startingQty)||0)} ${escapeHtml(i.unit||'')}</div>
+                <div style="font-size:10.5px;color:var(--text-3)">${fmtCr(Number(i.openingAmount)||((Number(i.startingQty)||0)*(Number(i.rate)||0)))}</div>
+              </td>
               <td style="text-align:center">${trackBtn}</td>
               <td class="actions-cell"><button class="btn btn-bad btn-xs" onclick="deleteItem('${s.id}','${i.id}')"><i class="bi bi-trash"></i></button></td>
             </tr>`;
@@ -3375,6 +3420,7 @@ function renderSetup(){
           <div class="struct-actions">
             ${s.category!=='group' ? `
               <button class="btn btn-soft btn-sm" onclick="addItem('${s.id}')"><i class="bi bi-plus-lg"></i> Add Activity</button>
+              <button class="btn btn-soft btn-sm" onclick="addVOItem('${s.id}')"><i class="bi bi-plus-circle"></i> Add VO Quantity</button>
               ${tplOptions ? `<button class="btn btn-ghost btn-sm" onclick="bulkAddItems('${s.id}')"><i class="bi bi-stars"></i> Add Typical Activities</button>` : ''}
             ` : ''}
             <button class="btn btn-ghost btn-sm" onclick="addStructure('${s.id}')"><i class="bi bi-diagram-3"></i> Add Sub-structure</button>
@@ -4137,6 +4183,64 @@ function calcIPC(ipc){
   return {gross, supplied, net, vat, retention, tds, totalDeduction, totalWithVAT, payable};
 }
 
+function isFinalIpcStatus(status){
+  return ['approved','final','paid'].includes(status);
+}
+
+function dprIpcNumber(){
+  const nums = (state.ipcs||[]).map(i=>{
+    const m = String(i.no||'').match(/(\d+)/);
+    return m ? Number(m[1]) : 0;
+  });
+  const next = Math.max(11, nums.length ? Math.max(...nums) : 11) + 1;
+  return 'IPC-' + String(next).padStart(2,'0');
+}
+
+function getUnlinkedDprLogs(){
+  return (state.logs||[]).filter(l => !l.ipcNo);
+}
+
+function buildDprIpcDraftData(){
+  const logs = getUnlinkedDprLogs();
+  const lineMap = new Map();
+  logs.forEach(l=>{
+    const s = state.structures.find(x=>x.id===l.structureId);
+    const item = s ? (s.items||[]).find(x=>x.id===l.itemId) : null;
+    if(!s || !item) return;
+    const key = `${l.structureId}:${l.itemId}`;
+    const cur = lineMap.get(key) || {
+      structureId:l.structureId, itemId:l.itemId, structure:getStructPath(s),
+      activity:item.activity, unit:item.unit, qty:0, amount:0, logIds:[]
+    };
+    const qty = Number(l.qty)||0;
+    cur.qty += qty;
+    cur.amount += qty * (Number(item.rate)||0);
+    cur.logIds.push(l.id);
+    lineMap.set(key, cur);
+  });
+  const lineItems = Array.from(lineMap.values());
+  const dates = logs.map(l=>l.date).filter(Boolean).sort();
+  return {
+    lineItems,
+    gross: lineItems.reduce((sum,x)=>sum+(Number(x.amount)||0), 0),
+    periodFrom: dates[0] || '',
+    periodTo: dates[dates.length-1] || '',
+    logCount: logs.length
+  };
+}
+
+function syncDprIpcLogLinks(ipc){
+  if(!ipc || ipc.source !== 'dpr') return;
+  const logIds = new Set((ipc.lineItems||[]).flatMap(x=>x.logIds||[]));
+  const shouldLink = isFinalIpcStatus(ipc.status);
+  (state.logs||[]).forEach(l=>{
+    if(logIds.has(l.id)){
+      if(shouldLink) l.ipcNo = ipc.no;
+      else if(l.ipcNo === ipc.no) delete l.ipcNo;
+    }
+  });
+}
+
 let editingIPC = null;
 function addIPC(){
   if(!hasPerm('ipc.create')){ toast('Only Engineer/Contractor can raise IPCs','bad'); return; }
@@ -4155,6 +4259,32 @@ function addIPC(){
   document.getElementById('ipcNo').value = nextIPCNumber();
   recalcIPCModal();
   document.getElementById('modalIPC').classList.add('show');
+}
+
+function createDprIpcDraft(){
+  if(!hasPerm('ipc.create')){ toast('Only Engineer/Contractor can raise IPCs','bad'); return; }
+  const dpr = buildDprIpcDraftData();
+  if(!dpr.logCount || !dpr.gross){
+    toast('No unlinked DPR quantity found for the next IPC','bad');
+    return;
+  }
+  let ipc = (state.ipcs||[]).find(i => i.source==='dpr' && !isFinalIpcStatus(i.status));
+  if(!ipc){
+    ipc = {id:uid(), createdAt:Date.now(), no:dprIpcNumber(), source:'dpr', status:'draft', vatPct:13, retPct:3, tdsPct:1.5};
+    state.ipcs.push(ipc);
+  }
+  Object.assign(ipc, {
+    gross:dpr.gross,
+    periodFrom:dpr.periodFrom,
+    periodTo:dpr.periodTo,
+    submittedDate:new Date().toISOString().slice(0,10),
+    lineItems:dpr.lineItems,
+    remarks:`Auto-linked from ${dpr.logCount} DPR entries. Edit amount/status here; set status Final/Paid to lock those DPR entries to ${ipc.no}.`
+  });
+  save();
+  renderIPC();
+  editIPC(ipc.id);
+  toast(`${ipc.no} prepared from DPR entries`,'good');
 }
 
 function editIPC(id){
@@ -4243,6 +4373,8 @@ function saveIPC(){
     data.createdAt = Date.now();
     state.ipcs.push(data);
   }
+  const savedIpc = state.ipcs.find(x=>x.id===(editingIPC || data.id));
+  syncDprIpcLogLinks(savedIpc);
   save();
   closeIPCModal();
   renderIPC();
@@ -4274,7 +4406,7 @@ function renderIPCKpis(){
   const host = document.getElementById('ipcKpiHost');
   if(!host) return;
   const ipcs = state.ipcs.slice();
-  const approved = ipcs.filter(i=>i.status==='approved' || i.status==='paid');
+  const approved = ipcs.filter(i=>isFinalIpcStatus(i.status));
   const paid = ipcs.filter(i=>i.status==='paid');
   const totalInclVAT = approved.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
   const totalNet = approved.reduce((s,i)=>{const c=calcIPC(i); return s+c.net;}, 0);
@@ -4341,8 +4473,16 @@ function renderIPC(){
 
   tbody.innerHTML = sorted.map(ipc=>{
     const c = calcIPC(ipc);
-    const stCls = ipc.status==='paid'?'good':ipc.status==='approved'?'info':ipc.status==='submitted'?'warn':'mut';
+    const stCls = ipc.status==='paid'||ipc.status==='final'?'good':ipc.status==='approved'?'info':ipc.status==='revised'||ipc.status==='submitted'?'warn':'mut';
     const period = (ipc.periodFrom&&ipc.periodTo) ? `${ipc.periodFrom.slice(5)} → ${ipc.periodTo.slice(5)}` : '—';
+    const detail = (ipc.lineItems||[]).length ? `<tr class="ipc-detail"><td colspan="11">
+      <div style="font-weight:700;color:var(--text-1);margin-bottom:8px">${ipc.source==='dpr'?'DPR linked quantities':'Excel IPC quantities'}</div>
+      <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+        <table style="font-size:11px"><thead><tr><th>Location</th><th>Activity</th><th class="num">Qty</th><th>Unit</th><th class="num">Amount</th></tr></thead>
+        <tbody>${(ipc.lineItems||[]).slice(0,80).map(x=>`<tr><td>${escapeHtml(x.structure||'')}</td><td>${escapeHtml(x.activity||'')}</td><td class="num">${fmt2(x.qty||0)}</td><td>${escapeHtml(x.unit||'')}</td><td class="num">${fmtCr(x.amount||0)}</td></tr>`).join('')}</tbody></table>
+      </div>
+      ${(ipc.lineItems||[]).length>80?`<div style="font-size:11px;color:var(--text-3);margin-top:6px">Showing first 80 of ${ipc.lineItems.length} linked lines.</div>`:''}
+    </td></tr>` : '';
     return `<tr class="ipc-row" onclick="editIPC('${ipc.id}')">
       <td><strong>${escapeHtml(ipc.no||'')}</strong></td>
       <td style="font-size:11px;color:var(--text-3)">${period}</td>
@@ -4355,7 +4495,7 @@ function renderIPC(){
       <td class="num"><strong style="color:var(--brand)">${fmtCr(c.payable)}</strong></td>
       <td><span class="pill pill-${stCls}">${ipc.status||'draft'}</span></td>
       <td><i class="bi bi-pencil" style="color:var(--text-3);font-size:12px"></i></td>
-    </tr>`;
+    </tr>${detail}`;
   }).join('') + (() => {
     // Total row
     const totals = sorted.reduce((acc,ipc)=>{
@@ -6993,6 +7133,113 @@ function loadMewaKholaTemplate(){
   renderSetup();
   toast('Mewa Khola HEP loaded — Final_04_02 schedule (783d, 70 milestones), full BOQ + VO items per IPC-09, Access Road Bill 21, Contract NPR 1.38 B','good');
 }
+
+function normaliseIpsUnit(unit, activity){
+  const u = String(unit||'').trim();
+  if(u) return u;
+  const a = String(activity||'').toLowerCase();
+  if(/reinforcement|tmt|steel ribs/.test(a)) return 'MT';
+  if(/formwork|shotcrete|wire mesh|geotextile|clearance|paint|plaster/.test(a)) return 'm²';
+  if(/drainage holes|rockbolt|forepoling|doors|windows/.test(a)) return 'nos';
+  if(/pipe|floodwall|fencing|chainage|length/.test(a)) return 'm';
+  if(/mobilisation|insurance|camp|laboratory|sum|dewatering/.test(a)) return 'LS';
+  return 'qty';
+}
+
+function loadIPSAllDataTemplate(force=false){
+  const data = window.IPS_ALL_DATA;
+  if(!data || !(data.items||[]).length){
+    loadMewaKholaTemplate();
+    return;
+  }
+  if(!force && (state.structures?.length || state.logs?.length || state.ipcs?.length)){
+    if(!confirm('Load IPS-All BOQ from Excel? This replaces the current setup data in this workspace.')) return;
+  }
+  const clone = JSON.parse(JSON.stringify(DEFAULT));
+  state = clone;
+  state.project = {
+    ...clone.project,
+    name:'Mewa Khola Hydropower Project',
+    contractValue:0,
+    baselineCost:0,
+    voCost:0,
+    revisedCost:0,
+    autoCostFromBoq:true,
+    midProject:true
+  };
+  state.structures = [];
+  state.logs = [];
+  state.ipcs = [];
+  state.payment = {billAmount:0, advanceAmount:30000000, advanceDate:'2024-08-20', advanceRecoveryPct:10, advanceRecovered:0};
+  state.approvals = {};
+  state.resources = [];
+  state.events = [];
+  state.weather = [];
+  state.infrastructure = [];
+  state.infraFacilities = [];
+  state.selectedLengthItems = [];
+
+  const root = {id:uid(), name:'IPS-All BOQ from Excel', category:'group', parentId:null, length:null, weightage:null, items:[]};
+  state.structures.push(root);
+  const bySection = new Map();
+  const getSection = name => {
+    const key = String(name||'Unassigned BOQ').trim() || 'Unassigned BOQ';
+    if(bySection.has(key)) return bySection.get(key);
+    const s = {id:uid(), name:key, category:/tunnel|shaft|adit/i.test(key)?'tunnel':'surface', parentId:root.id, length:null, weightage:null, items:[]};
+    bySection.set(key, s);
+    state.structures.push(s);
+    return s;
+  };
+
+  (data.items||[]).forEach(src=>{
+    const s = getSection(src.section);
+    const qty = Number(src.boqQty)||0;
+    const amount = Number(src.amount)||0;
+    const rate = Number(src.rate)||0;
+    const activity = `${src.itemNo ? src.itemNo + ' - ' : ''}${src.description||'BOQ item'}`;
+    s.items.push({
+      id:uid(),
+      activity,
+      unit:normaliseIpsUnit(src.unit, src.description),
+      plannedQty:qty,
+      rate,
+      boqAmount:amount,
+      startingQty:Number(src.openingQty)||0,
+      openingAmount:Number(src.openingAmount)||0,
+      excelRow:src.row,
+      ipcHistory:src.ipcs||[]
+    });
+  });
+
+  syncProjectCostsFromItems();
+  const lastIpc = Number(data.lastIpc)||11;
+  for(let n=1; n<=lastIpc; n++){
+    const gross = (data.items||[]).reduce((sum,item)=>{
+      const hit = (item.ipcs||[]).find(x=>Number(x.no)===n);
+      return sum + (hit ? Number(hit.amount)||0 : 0);
+    }, 0);
+    state.ipcs.push({
+      id:uid(),
+      no:'IPC-' + String(n).padStart(2,'0'),
+      gross,
+      periodFrom:'',
+      periodTo:'',
+      submittedDate:'',
+      vatPct:13,
+      retPct:3,
+      tdsPct:1.5,
+      status:'paid',
+      source:'ips-all',
+      remarks:`Imported from ${data.source || 'IPS-All.xlsx'} (${data.sheet || 'Quantity Only'})`
+    });
+  }
+  state.payment.billAmount = state.ipcs.reduce((sum,ipc)=>sum+calcIPC(ipc).payable, 0);
+  save();
+  renderProject();
+  renderSetup();
+  toast(`IPS-All BOQ loaded: ${data.items.length} items, IPC 1-${lastIpc}, next DPR IPC is ${dprIpcNumber()}`,'good');
+}
+
 function getLinearStructures(){
   return state.structures.filter(s => {
     if(!s.length || !s.length>0) return false;
@@ -7748,7 +7995,7 @@ function renderDashboard(){
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
 
   // Financial progress (Manual Bill Amount + Mobilization Advance) / Contract Value
-  const approvedIPCs = (state.ipcs||[]).filter(i=>i.status==='approved' || i.status==='paid');
+  const approvedIPCs = (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status));
   const totalInclVAT = approvedIPCs.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
   const contractValue = Number(state.project.contractValue)||0;
   const billAmt = Number(state.payment?.billAmount)||0;
@@ -8787,7 +9034,11 @@ const shouldAutoLoadMewaKhola = !localStorage.getItem(STORAGE_KEY) || (
   state.project.contractNo === 'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01'
 );
 if(shouldAutoLoadMewaKhola){
-  loadMewaKholaTemplate();
+  if(window.IPS_ALL_DATA && window.IPS_ALL_DATA.items){
+    loadIPSAllDataTemplate(true);
+  } else {
+    loadMewaKholaTemplate();
+  }
 } else {
   migrateLengthTracking();
   renderProject();
