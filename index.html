@@ -1524,6 +1524,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
             <div class="field"><label>Baseline Cost</label><input type="number" id="pBaselineCost" step="0.01" placeholder="Original contract value"></div>
             <div class="field"><label>VO Cost</label><input type="number" id="pVoCost" step="0.01" placeholder="Variation order costs"></div>
             <div class="field"><label>Revised Cost</label><input type="number" id="pRevisedCost" step="0.01" placeholder="Total revised contract value"></div>
+            <div class="field"><label>VAT (%)</label><input type="number" id="pVatPct" step="0.01" placeholder="13"></div>
             <div class="field"><label>Baseline Start</label><input type="date" id="pStart"></div>
             <div class="field"><label>Baseline End</label><input type="date" id="pEnd"></div>
             <div class="field"><label>Revised Start (optional)</label><input type="date" id="pRevStart"></div>
@@ -2084,7 +2085,23 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         <div class="card-body" id="customLengthHost"></div>
       </div>
 
-      <div class="card" style="margin-bottom:18px">
+      <div class="card" style="margin-bottom:18px" id="sectionProgressCard">
+        <div class="card-head">
+          <h3><i class="bi bi-grid-3x3-gap" style="margin-right:6px;color:var(--brand)"></i> Section &amp; BOQ Category Progress</h3>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select id="sectionPeriodMode" onchange="renderSectionProgressDashboard()" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-1);padding:5px 10px;border-radius:7px;font-size:12px;outline:none">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly" selected>Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+            <span style="font-size:11px;color:var(--text-3)">click a section row to view period progress</span>
+          </div>
+        </div>
+        <div class="card-body" id="sectionProgressHost"></div>
+      </div>
+
+      <div class="card legacy-dashboard-chart" style="margin-bottom:18px;display:none">
         <div class="card-head"><h3>Plan vs Actual — Recent Periods</h3>
           <select id="pvaMode" onchange="renderPVA()" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-1);padding:5px 10px;border-radius:7px;font-size:12px;outline:none">
             <option value="daily">Last 14 Days</option>
@@ -2095,7 +2112,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         <div class="card-body"><div class="chart-wrap tall"><canvas id="chartPVA"></canvas></div></div>
       </div>
 
-      <div class="g2" style="margin-bottom:18px">
+      <div class="g2 legacy-dashboard-chart" style="margin-bottom:18px;display:none">
         <div class="card">
           <div class="card-head"><h3>Cumulative Progress (S-Curve)</h3></div>
           <div class="card-body"><div class="chart-wrap tall"><canvas id="chartScurve"></canvas></div></div>
@@ -2106,7 +2123,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         </div>
       </div>
 
-      <div class="g3" style="margin-bottom:18px">
+      <div class="g3 legacy-dashboard-chart" style="margin-bottom:18px;display:none">
         <div class="card">
           <div class="card-head"><h3>Daily Progress (Last 30 days)</h3></div>
           <div class="card-body"><div class="chart-wrap"><canvas id="chartDaily"></canvas></div></div>
@@ -2121,7 +2138,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:18px">
+      <div class="card legacy-dashboard-chart" style="margin-bottom:18px;display:none">
         <div class="card-head"><h3>Structure Progress Summary</h3></div>
         <div class="card-body" style="padding:0;overflow-x:auto">
           <table id="structSummary">
@@ -2468,10 +2485,10 @@ const STORAGE_KEY = 'hpms_data_v2';
 
 const DEFAULT = {
   project:{name:'Mewa Khola Hydropower Project',capacity:'23',capacityUnit:'MW',type:'Run-of-River',location:'Taplejung, Province No. 1, Nepal',
-    employer:'High Himal-Jade Infra JV',contractor:'High Himalaya Hydro Construction Pvt. Ltd. (3HC)',startDate:'2026-04-10',endDate:'2028-06-01',currency:'NPR',
+    employer:'High Himal-Jade Infra JV',contractor:'High Himalaya Hydro Construction Pvt. Ltd. (3HC)',startDate:'2024-08-15',endDate:'2027-07-15',currency:'NPR',
     contractNo:'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01', contractValue:1380082100.12,
     baselineCost:1380082100.12, voCost:0, revisedCost:1380082100.12,
-    revStartDate:'2026-04-10', revEndDate:'2028-06-01', extReason:'',
+    vatPct:13, revStartDate:'2024-08-15', revEndDate:'2028-02-03', extReason:'',
     midProject:true},
   structures:[],
   logs:[],
@@ -2514,7 +2531,7 @@ let state = (()=>{
       data.username = data.username || '';
       data.role = data.role || 'guest';
       data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
-      data.project = Object.assign({contractNo:'', contractValue:0, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
+      data.project = Object.assign({contractNo:'', contractValue:0, baselineCost:0, voCost:0, revisedCost:0, vatPct:13, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
       return data;
     }
   }catch(e){}
@@ -2926,8 +2943,11 @@ function syncProjectCostsFromItems(){
   state.project.baselineCost = base;
   state.project.voCost = vo;
   state.project.revisedCost = base + vo;
-  state.project.contractValue = base + vo;
+  state.project.contractValue = costInclVat(base + vo);
 }
+const projectVatPct = () => Number(state.project?.vatPct ?? 13) || 0;
+const costInclVat = amount => (Number(amount)||0) * (1 + projectVatPct()/100);
+const costVat = amount => (Number(amount)||0) * projectVatPct()/100;
 const itemActualQty = (sid,iid) => {
   const s = state.structures.find(x=>x.id===sid);
   const i = s ? (s.items||[]).find(x=>x.id===iid) : null;
@@ -3030,6 +3050,7 @@ function renderProject(){
   document.getElementById('pBaselineCost').value = state.project.baselineCost || '';
   document.getElementById('pVoCost').value = state.project.voCost || '';
   document.getElementById('pRevisedCost').value = state.project.revisedCost || '';
+  document.getElementById('pVatPct').value = state.project.vatPct ?? 13;
   document.getElementById('pRevStart').value = state.project.revStartDate || '';
   document.getElementById('pRevEnd').value = state.project.revEndDate || '';
   document.getElementById('pExtReason').value = state.project.extReason || '';
@@ -3042,17 +3063,21 @@ function renderProject(){
   toggleMidProject();
 }
 ['pName','pCap','pCapUnit','pType','pLoc','pCcy','pEmp','pCon','pStart','pEnd',
- 'pContractNo','pContractValue','pBaselineCost','pVoCost','pRevisedCost','pRevStart','pRevEnd','pExtReason'].forEach(id=>{
+ 'pContractNo','pContractValue','pBaselineCost','pVoCost','pRevisedCost','pVatPct','pRevStart','pRevEnd','pExtReason'].forEach(id=>{
   document.getElementById(id).addEventListener('input', e=>{
     const map = {pName:'name',pCap:'capacity',pCapUnit:'capacityUnit',pType:'type',pLoc:'location',
       pCcy:'currency',pEmp:'employer',pCon:'contractor',pStart:'startDate',pEnd:'endDate',
-      pContractNo:'contractNo', pContractValue:'contractValue', pBaselineCost:'baselineCost', pVoCost:'voCost', pRevisedCost:'revisedCost',
+      pContractNo:'contractNo', pContractValue:'contractValue', pBaselineCost:'baselineCost', pVoCost:'voCost', pRevisedCost:'revisedCost', pVatPct:'vatPct',
       pRevStart:'revStartDate', pRevEnd:'revEndDate', pExtReason:'extReason'};
     const v = e.target.value;
-    state.project[map[id]] = (['pContractValue','pBaselineCost','pVoCost','pRevisedCost'].includes(id)) ? (Number(v)||0) : v;
+    state.project[map[id]] = (['pContractValue','pBaselineCost','pVoCost','pRevisedCost','pVatPct'].includes(id)) ? (Number(v)||0) : v;
     if(['pBaselineCost','pVoCost'].includes(id)){
       state.project.revisedCost = (state.project.baselineCost || 0) + (state.project.voCost || 0);
       document.getElementById('pRevisedCost').value = state.project.revisedCost;
+    }
+    if(id==='pVatPct' && state.project.autoCostFromBoq){
+      state.project.contractValue = costInclVat(state.project.revisedCost || 0);
+      document.getElementById('pContractValue').value = state.project.contractValue;
     }
     save();
     if(id==='pName' || id==='pCap' || id==='pCapUnit' || id==='pType'){
@@ -3062,7 +3087,7 @@ function renderProject(){
       document.getElementById('projMeta').textContent = meta;
     }
     // Live-refresh the dashboard when financial / schedule fields change
-    if(['pContractValue','pBaselineCost','pVoCost','pRevisedCost','pStart','pEnd','pRevStart','pRevEnd'].includes(id)){
+    if(['pContractValue','pBaselineCost','pVoCost','pRevisedCost','pVatPct','pStart','pEnd','pRevStart','pRevEnd'].includes(id)){
       scheduleDashboardRefresh();
     }
   });
@@ -3361,7 +3386,7 @@ function renderSetup(){
       <table class="items-table">
         <thead><tr>
           <th>Activity</th><th style="width:80px">Unit</th>
-          <th class="num" style="width:120px">Planned Qty</th>
+          <th class="num" style="width:120px">BOQ Qty</th>
           <th class="num" style="width:110px">Rate (${ccy()})</th>
           <th class="num" style="width:140px">Amount</th>
           <th class="num" style="width:150px">IPC to Date</th>
@@ -4187,6 +4212,10 @@ function isFinalIpcStatus(status){
   return ['approved','final','paid'].includes(status);
 }
 
+function isIpcLocked(ipc){
+  return !!(ipc && (ipc.locked || isFinalIpcStatus(ipc.status)));
+}
+
 function dprIpcNumber(){
   const nums = (state.ipcs||[]).map(i=>{
     const m = String(i.no||'').match(/(\d+)/);
@@ -4232,13 +4261,67 @@ function buildDprIpcDraftData(){
 function syncDprIpcLogLinks(ipc){
   if(!ipc || ipc.source !== 'dpr') return;
   const logIds = new Set((ipc.lineItems||[]).flatMap(x=>x.logIds||[]));
-  const shouldLink = isFinalIpcStatus(ipc.status);
+  const shouldLink = isIpcLocked(ipc);
   (state.logs||[]).forEach(l=>{
     if(logIds.has(l.id)){
       if(shouldLink) l.ipcNo = ipc.no;
       else if(l.ipcNo === ipc.no) delete l.ipcNo;
     }
   });
+}
+
+function recalcIpcGrossFromLines(ipc){
+  if(!ipc || !(ipc.lineItems||[]).length) return;
+  ipc.gross = (ipc.lineItems||[]).reduce((sum,x)=>sum+(Number(x.amount)||0), 0);
+}
+
+function updateIPCLineItem(ipcId, idx, key, val){
+  const ipc = (state.ipcs||[]).find(x=>x.id===ipcId);
+  if(!ipc || isIpcLocked(ipc)) return;
+  const line = (ipc.lineItems||[])[idx];
+  if(!line) return;
+  line[key] = Number(val)||0;
+  recalcIpcGrossFromLines(ipc);
+  save();
+  renderIPC();
+  renderIPCKpis();
+}
+
+function ipsAllLineItemsForIpc(no){
+  const data = window.IPS_ALL_DATA;
+  if(!data || !(data.items||[]).length) return [];
+  return (data.items||[]).map(src=>{
+    const hit = (src.ipcs||[]).find(x=>Number(x.no)===Number(no));
+    const qty = hit ? Number(hit.qty)||0 : 0;
+    const amount = hit ? Number(hit.amount)||0 : 0;
+    if(!qty && !amount) return null;
+    return {
+      structure: src.section || 'BOQ',
+      activity: `${src.itemNo ? src.itemNo + ' - ' : ''}${src.description||'BOQ item'}`,
+      unit: normaliseIpsUnit(src.unit, src.description),
+      qty,
+      amount,
+      excelRow: src.row
+    };
+  }).filter(Boolean);
+}
+
+function migrateIpcLineItems(){
+  let changed = false;
+  (state.ipcs||[]).forEach(ipc=>{
+    const n = parseInt(String(ipc.no||'').replace(/\D/g,''))||0;
+    if(ipc.source === 'ips-all' && n >= 1 && n <= 11 && !(ipc.lineItems||[]).length){
+      ipc.lineItems = ipsAllLineItemsForIpc(n);
+      recalcIpcGrossFromLines(ipc);
+      ipc.locked = true;
+      changed = true;
+    }
+    if(isFinalIpcStatus(ipc.status) && !ipc.locked){
+      ipc.locked = true;
+      changed = true;
+    }
+  });
+  if(changed){ try{ save(); }catch(e){} }
 }
 
 let editingIPC = null;
@@ -4257,6 +4340,12 @@ function addIPC(){
   document.getElementById('ipcTDSpct').value = 1.5;
   document.getElementById('ipcStatus').value = 'draft';
   document.getElementById('ipcNo').value = nextIPCNumber();
+  ['ipcNo','ipcPeriodFrom','ipcPeriodTo','ipcSubmitted','ipcGross','ipcExplosive','ipcDetonator',
+   'ipcArmy','ipcElectricity','ipcOther','ipcVATpct','ipcRetPct','ipcTDSpct','ipcStatus',
+   'ipcApprovedDate','ipcPaidDate','ipcApprovedBy','ipcRemarks'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.disabled = false;
+  });
   recalcIPCModal();
   document.getElementById('modalIPC').classList.add('show');
 }
@@ -4268,7 +4357,7 @@ function createDprIpcDraft(){
     toast('No unlinked DPR quantity found for the next IPC','bad');
     return;
   }
-  let ipc = (state.ipcs||[]).find(i => i.source==='dpr' && !isFinalIpcStatus(i.status));
+  let ipc = (state.ipcs||[]).find(i => i.source==='dpr' && !isIpcLocked(i));
   if(!ipc){
     ipc = {id:uid(), createdAt:Date.now(), no:dprIpcNumber(), source:'dpr', status:'draft', vatPct:13, retPct:3, tdsPct:1.5};
     state.ipcs.push(ipc);
@@ -4279,7 +4368,8 @@ function createDprIpcDraft(){
     periodTo:dpr.periodTo,
     submittedDate:new Date().toISOString().slice(0,10),
     lineItems:dpr.lineItems,
-    remarks:`Auto-linked from ${dpr.logCount} DPR entries. Edit amount/status here; set status Final/Paid to lock those DPR entries to ${ipc.no}.`
+    locked:false,
+    remarks:`Auto-linked from ${dpr.logCount} DPR entries. Edit quantity/amount here; set status Final/Approved/Paid to lock those DPR entries to ${ipc.no}.`
   });
   save();
   renderIPC();
@@ -4290,9 +4380,10 @@ function createDprIpcDraft(){
 function editIPC(id){
   const ipc = state.ipcs.find(x=>x.id===id);
   if(!ipc) return;
+  const locked = isIpcLocked(ipc);
   editingIPC = id;
-  document.getElementById('ipcModalTitle').innerHTML = `<i class="bi bi-receipt" style="margin-right:6px;color:var(--brand)"></i> Edit ${ipc.no}`;
-  document.getElementById('ipcDeleteBtn').style.display = hasPerm('ipc.create')?'inline-flex':'none';
+  document.getElementById('ipcModalTitle').innerHTML = `<i class="bi bi-receipt" style="margin-right:6px;color:var(--brand)"></i> ${locked?'View locked':'Edit'} ${ipc.no}`;
+  document.getElementById('ipcDeleteBtn').style.display = (hasPerm('ipc.create') && !locked)?'inline-flex':'none';
   document.getElementById('ipcNo').value = ipc.no || '';
   document.getElementById('ipcPeriodFrom').value = ipc.periodFrom || '';
   document.getElementById('ipcPeriodTo').value = ipc.periodTo || '';
@@ -4315,8 +4406,11 @@ function editIPC(id){
   document.getElementById('modalIPC').classList.add('show');
 
   // Disable approval-only fields if not Project Manager
-  ['ipcStatus','ipcApprovedDate','ipcApprovedBy'].forEach(id=>{
-    document.getElementById(id).disabled = !hasPerm('ipc.approve') && !hasPerm('ipc.create');
+  ['ipcNo','ipcPeriodFrom','ipcPeriodTo','ipcSubmitted','ipcGross','ipcExplosive','ipcDetonator',
+   'ipcArmy','ipcElectricity','ipcOther','ipcVATpct','ipcRetPct','ipcTDSpct','ipcStatus',
+   'ipcApprovedDate','ipcPaidDate','ipcApprovedBy','ipcRemarks'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.disabled = locked || (['ipcStatus','ipcApprovedDate','ipcApprovedBy'].includes(id) && !hasPerm('ipc.approve') && !hasPerm('ipc.create'));
   });
 }
 
@@ -4345,6 +4439,14 @@ function recalcIPCModal(){
 }
 
 function saveIPC(){
+  if(editingIPC){
+    const existing = state.ipcs.find(x=>x.id===editingIPC);
+    if(isIpcLocked(existing)){
+      closeIPCModal();
+      toast(`${existing.no} is locked. Create a revised/new IPC from DPR for further changes.`,'bad');
+      return;
+    }
+  }
   const data = {
     no: document.getElementById('ipcNo').value || nextIPCNumber(),
     periodFrom: document.getElementById('ipcPeriodFrom').value,
@@ -4374,6 +4476,10 @@ function saveIPC(){
     state.ipcs.push(data);
   }
   const savedIpc = state.ipcs.find(x=>x.id===(editingIPC || data.id));
+  if(savedIpc){
+    if((savedIpc.lineItems||[]).length) recalcIpcGrossFromLines(savedIpc);
+    if(isFinalIpcStatus(savedIpc.status)) savedIpc.locked = true;
+  }
   syncDprIpcLogLinks(savedIpc);
   save();
   closeIPCModal();
@@ -4383,6 +4489,8 @@ function saveIPC(){
 
 function deleteIPC(){
   if(!editingIPC) return;
+  const ipc = state.ipcs.find(x=>x.id===editingIPC);
+  if(isIpcLocked(ipc)){ toast(`${ipc.no} is locked and cannot be deleted`,'bad'); return; }
   if(!confirm('Delete this IPC?')) return;
   state.ipcs = state.ipcs.filter(x=>x.id!==editingIPC);
   save();
@@ -4445,6 +4553,7 @@ function renderIPCKpis(){
 }
 
 function renderIPC(){
+  migrateIpcLineItems();
   // Pre-fill payment form
   document.getElementById('billAmount').value = state.payment.billAmount || '';
   document.getElementById('advAmount').value = state.payment.advanceAmount || '';
@@ -4473,15 +4582,30 @@ function renderIPC(){
 
   tbody.innerHTML = sorted.map(ipc=>{
     const c = calcIPC(ipc);
+    const locked = isIpcLocked(ipc);
     const stCls = ipc.status==='paid'||ipc.status==='final'?'good':ipc.status==='approved'?'info':ipc.status==='revised'||ipc.status==='submitted'?'warn':'mut';
     const period = (ipc.periodFrom&&ipc.periodTo) ? `${ipc.periodFrom.slice(5)} → ${ipc.periodTo.slice(5)}` : '—';
+    const lineTotals = (ipc.lineItems||[]).reduce((acc,x)=>{
+      acc.qty += Number(x.qty)||0;
+      acc.amount += Number(x.amount)||0;
+      return acc;
+    }, {qty:0, amount:0});
     const detail = (ipc.lineItems||[]).length ? `<tr class="ipc-detail"><td colspan="11">
-      <div style="font-weight:700;color:var(--text-1);margin-bottom:8px">${ipc.source==='dpr'?'DPR linked quantities':'Excel IPC quantities'}</div>
-      <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
-        <table style="font-size:11px"><thead><tr><th>Location</th><th>Activity</th><th class="num">Qty</th><th>Unit</th><th class="num">Amount</th></tr></thead>
-        <tbody>${(ipc.lineItems||[]).slice(0,80).map(x=>`<tr><td>${escapeHtml(x.structure||'')}</td><td>${escapeHtml(x.activity||'')}</td><td class="num">${fmt2(x.qty||0)}</td><td>${escapeHtml(x.unit||'')}</td><td class="num">${fmtCr(x.amount||0)}</td></tr>`).join('')}</tbody></table>
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <div style="font-weight:700;color:var(--text-1)">${ipc.source==='dpr'?'DPR linked quantities':'Excel IPC quantities'} ${locked?'<span class="pill pill-good" style="margin-left:6px">locked</span>':'<span class="pill pill-warn" style="margin-left:6px">editable</span>'}</div>
+        <div class="mono" style="font-size:11px;color:var(--text-3)">This IPC only: ${fmt2(lineTotals.qty)} qty · ${fmtCr(lineTotals.amount)}</div>
       </div>
-      ${(ipc.lineItems||[]).length>80?`<div style="font-size:11px;color:var(--text-3);margin-top:6px">Showing first 80 of ${ipc.lineItems.length} linked lines.</div>`:''}
+      <div style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+        <table style="font-size:11px"><thead><tr><th>Location</th><th>Activity</th><th class="num">This IPC Qty</th><th>Unit</th><th class="num">This IPC Amount</th></tr></thead>
+        <tbody>${(ipc.lineItems||[]).slice(0,120).map((x,idx)=>`<tr>
+          <td>${escapeHtml(x.structure||'')}</td>
+          <td>${escapeHtml(x.activity||'')}</td>
+          <td class="num">${locked?fmt2(x.qty||0):`<input type="number" class="num-input" step="0.01" value="${Number(x.qty)||0}" onchange="updateIPCLineItem('${ipc.id}',${idx},'qty',this.value)" style="width:90px">`}</td>
+          <td>${escapeHtml(x.unit||'')}</td>
+          <td class="num">${locked?fmtCr(x.amount||0):`<input type="number" class="num-input" step="0.01" value="${Number(x.amount)||0}" onchange="updateIPCLineItem('${ipc.id}',${idx},'amount',this.value)" style="width:120px">`}</td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      ${(ipc.lineItems||[]).length>120?`<div style="font-size:11px;color:var(--text-3);margin-top:6px">Showing first 120 of ${ipc.lineItems.length} linked lines.</div>`:''}
     </td></tr>` : '';
     return `<tr class="ipc-row" onclick="editIPC('${ipc.id}')">
       <td><strong>${escapeHtml(ipc.no||'')}</strong></td>
@@ -7160,10 +7284,16 @@ function loadIPSAllDataTemplate(force=false){
   state.project = {
     ...clone.project,
     name:'Mewa Khola Hydropower Project',
+    startDate:'2024-08-15',
+    endDate:'2027-07-15',
+    revStartDate:'2024-08-15',
+    revEndDate:'2028-02-03',
     contractValue:0,
     baselineCost:0,
     voCost:0,
     revisedCost:0,
+    vatPct:13,
+    dateVatDefaults20260524:true,
     autoCostFromBoq:true,
     midProject:true
   };
@@ -7229,7 +7359,9 @@ function loadIPSAllDataTemplate(force=false){
       retPct:3,
       tdsPct:1.5,
       status:'paid',
+      locked:true,
       source:'ips-all',
+      lineItems: ipsAllLineItemsForIpc(n),
       remarks:`Imported from ${data.source || 'IPS-All.xlsx'} (${data.sheet || 'Quantity Only'})`
     });
   }
@@ -7366,7 +7498,7 @@ function renderLinearProgress(){
         }).join('')}
       </div>` : '';
     return `
-      <div class="lp-tile lp-${cls}" title="${escapeHtml(s.name)} — ${fmt2(lp.completed)} of ${fmt2(lp.total)} m">
+      <div class="lp-tile lp-${cls}" onclick="renderSectionProgressDashboard('${s.id}')" style="cursor:pointer" title="${escapeHtml(s.name)} — ${fmt2(lp.completed)} of ${fmt2(lp.total)} m">
         <div class="lp-tile-head">
           <div class="lp-tile-icon"><i class="bi bi-${icon}"></i></div>
           <div class="lp-tile-titles">
@@ -7972,6 +8104,135 @@ function renderDashboardMilestones(){
   }).join('')}</div>`;
 }
 
+const BOQ_PROGRESS_CATEGORIES = {
+  excavation: 'Excavation',
+  protection: 'Protection',
+  concreting: 'Concreting',
+  rebar: 'Rebar',
+  formwork: 'Formwork',
+  other: 'Other'
+};
+
+function classifyBoqCategory(activity){
+  const a = String(activity||'').toLowerCase();
+  if(/excavat|cutting|muck|spoil|bms|hard rock|soft rock|drill|blast|breaker/.test(a)) return 'excavation';
+  if(/gabion|riprap|pitch|masonry|shotcrete|rockbolt|rock bolt|bolt|wire ?mesh|drainage|geotextile|forepoling|protection|floodwall|river training/.test(a)) return 'protection';
+  if(/concrete|rcc|pcc|m10|m15|m20|m25|m30|m35|m40|plum|blinding|lining|infill/.test(a)) return 'concreting';
+  if(/rebar|reinforcement|tmt|bar reinforcement/.test(a)) return 'rebar';
+  if(/formwork|shuttering|centering/.test(a)) return 'formwork';
+  return 'other';
+}
+
+function getDashboardSections(){
+  return (state.structures||[]).filter(s => s.category !== 'group' && (s.items||[]).length);
+}
+
+function summarizeSection(s){
+  const cats = {};
+  Object.keys(BOQ_PROGRESS_CATEGORIES).forEach(k => cats[k] = {key:k, label:BOQ_PROGRESS_CATEGORIES[k], qty:0, done:0, amount:0, earned:0, count:0});
+  (s.items||[]).forEach(i=>{
+    const key = classifyBoqCategory(i.activity);
+    const row = cats[key] || cats.other;
+    const qty = Number(i.plannedQty)||0;
+    const done = itemActualQty(s.id, i.id);
+    row.qty += qty;
+    row.done += done;
+    row.amount += itemAmount(i);
+    row.earned += itemEarned(s.id, i);
+    row.count += 1;
+  });
+  const amount = Object.values(cats).reduce((sum,x)=>sum+x.amount,0);
+  const earned = Object.values(cats).reduce((sum,x)=>sum+x.earned,0);
+  return {section:s, cats:Object.values(cats), amount, earned, pct:amount ? Math.min(100,(earned/amount)*100) : 0};
+}
+
+function periodKeyForDate(date, mode){
+  if(!date) return '';
+  if(mode === 'daily') return date;
+  if(mode === 'monthly') return date.slice(0,7);
+  if(mode === 'yearly') return date.slice(0,4);
+  return isoWeekKey(new Date(date));
+}
+
+function sectionPeriodSeries(sectionId, mode){
+  const rows = {};
+  (state.logs||[]).filter(l=>l.structureId===sectionId).forEach(l=>{
+    const s = state.structures.find(x=>x.id===l.structureId);
+    const i = s ? (s.items||[]).find(x=>x.id===l.itemId) : null;
+    if(!i) return;
+    const key = periodKeyForDate(l.date, mode);
+    if(!key) return;
+    rows[key] = rows[key] || {key, qty:0, amount:0, byCat:{}};
+    const cat = classifyBoqCategory(i.activity);
+    const qty = Number(l.qty)||0;
+    const amt = qty * (Number(i.rate)||0);
+    rows[key].qty += qty;
+    rows[key].amount += amt;
+    rows[key].byCat[cat] = (rows[key].byCat[cat]||0) + amt;
+  });
+  return Object.values(rows).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,24);
+}
+
+function renderSectionProgressDashboard(sectionId){
+  const host = document.getElementById('sectionProgressHost');
+  if(!host) return;
+  const sections = getDashboardSections();
+  if(!sections.length){
+    host.innerHTML = `<div class="empty"><i class="bi bi-inbox"></i><div class="empty-title">No BOQ sections</div><div class="empty-sub">Load IPS-All BOQ or add section activities in Setup.</div></div>`;
+    return;
+  }
+  const selectedId = sectionId || state.dashboardSectionId || sections[0].id;
+  state.dashboardSectionId = sections.some(s=>s.id===selectedId) ? selectedId : sections[0].id;
+  const selected = sections.find(s=>s.id===state.dashboardSectionId) || sections[0];
+  const mode = (document.getElementById('sectionPeriodMode')||{}).value || 'monthly';
+  const summaries = sections.map(summarizeSection).sort((a,b)=>b.amount-a.amount);
+  const selectedSummary = summarizeSection(selected);
+  const periodRows = sectionPeriodSeries(selected.id, mode);
+  const vat = projectVatPct();
+  const catRows = selectedSummary.cats.filter(x=>x.count).sort((a,b)=>b.amount-a.amount);
+  host.innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:14px">
+      <div class="kpi"><div class="kpi-label">Selected Section</div><div class="kpi-value" style="font-size:18px">${escapeHtml(selected.name)}</div><div class="kpi-sub">${catRows.length} BOQ categories</div></div>
+      <div class="kpi kpi-info"><div class="kpi-label">BOQ Cost + VAT</div><div class="kpi-value">${fmtCr(costInclVat(selectedSummary.amount))}</div><div class="kpi-sub">excl. ${fmtCr(selectedSummary.amount)} + ${vat}% VAT</div></div>
+      <div class="kpi kpi-good"><div class="kpi-label">Cumulative Progress</div><div class="kpi-value">${fmtPct(selectedSummary.pct)}</div><div class="bar" style="margin-top:8px"><i style="width:${Math.min(100,selectedSummary.pct)}%"></i></div></div>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table>
+        <thead><tr><th>Section</th><th class="num">BOQ + VAT</th><th class="num">Earned</th><th>Progress</th><th class="num">%</th></tr></thead>
+        <tbody>${summaries.map(x=>`<tr onclick="renderSectionProgressDashboard('${x.section.id}')" style="cursor:pointer;${x.section.id===selected.id?'background:var(--brand-soft)':''}">
+          <td><strong>${escapeHtml(x.section.name)}</strong></td>
+          <td class="num">${fmtCr(costInclVat(x.amount))}</td>
+          <td class="num">${fmtCr(x.earned)}</td>
+          <td><div class="bar"><i style="width:${Math.min(100,x.pct)}%"></i></div></td>
+          <td class="num"><strong>${fmtPct(x.pct)}</strong></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="g2" style="margin-bottom:16px">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>BOQ Category</th><th class="num">BOQ Qty</th><th class="num">Done Qty</th><th class="num">BOQ + VAT</th><th class="num">Progress</th></tr></thead>
+          <tbody>${catRows.map(x=>`<tr>
+            <td>${escapeHtml(x.label)} <span style="color:var(--text-3);font-size:11px">(${x.count} items)</span></td>
+            <td class="num">${fmt2(x.qty)}</td>
+            <td class="num">${fmt2(x.done)}</td>
+            <td class="num">${fmtCr(costInclVat(x.amount))}</td>
+            <td class="num">${fmtPct(x.amount ? (x.earned/x.amount)*100 : 0)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>${mode[0].toUpperCase()+mode.slice(1)} Period</th><th class="num">Logged Qty</th><th class="num">Amount</th><th>Top Category</th></tr></thead>
+          <tbody>${periodRows.length ? periodRows.map(x=>{
+            const top = Object.entries(x.byCat).sort((a,b)=>b[1]-a[1])[0];
+            return `<tr><td>${escapeHtml(x.key)}</td><td class="num">${fmt2(x.qty)}</td><td class="num">${fmtCr(x.amount)}</td><td>${top ? escapeHtml(BOQ_PROGRESS_CATEGORIES[top[0]] || top[0]) : '-'}</td></tr>`;
+          }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:22px">No DPR quantity logged for this section in ${mode} view.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 /* ---- Render Dashboard ---- */
 function renderDashboard(){
   renderHero();
@@ -8009,8 +8270,8 @@ function renderDashboard(){
       <div class="bar" style="margin-top:8px"><i style="width:${Math.min(100,overall)}%"></i></div>
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
-      <div class="kpi-label">Total Planned</div>
-      <div class="kpi-value">${fmtCr(totalAmt)}</div>
+      <div class="kpi-label">BOQ Cost Incl. VAT</div>
+      <div class="kpi-value">${fmtCr(costInclVat(totalAmt))}</div>
       <div class="kpi-sub">${ccy()} · ${activeStructs} active structures</div>
     </div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
@@ -8019,18 +8280,18 @@ function renderDashboard(){
       <div class="kpi-sub">${ccy()} · ${totalLogs} log entries</div>
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
-      <div class="kpi-label">Baseline Cost</div>
-      <div class="kpi-value">${fmtCr(state.project.baselineCost || 0)}</div>
+      <div class="kpi-label">Baseline + VAT</div>
+      <div class="kpi-value">${fmtCr(costInclVat(state.project.baselineCost || 0))}</div>
       <div class="kpi-sub">${ccy()} · original contract</div>
     </div>
     <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-plus-circle"></i></div>
-      <div class="kpi-label">VO Cost</div>
-      <div class="kpi-value">${fmtCr(state.project.voCost || 0)}</div>
+      <div class="kpi-label">VO + VAT</div>
+      <div class="kpi-value">${fmtCr(costInclVat(state.project.voCost || 0))}</div>
       <div class="kpi-sub">${ccy()} · variation orders</div>
     </div>
     <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-arrow-repeat"></i></div>
-      <div class="kpi-label">Revised Cost</div>
-      <div class="kpi-value">${fmtCr(state.project.revisedCost || 0)}</div>
+      <div class="kpi-label">Revised + VAT</div>
+      <div class="kpi-value">${fmtCr(costInclVat(state.project.revisedCost || 0))}</div>
       <div class="kpi-sub">${ccy()} · total revised</div>
     </div>
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-calendar-day"></i></div>
@@ -8060,6 +8321,9 @@ function renderDashboard(){
       <div class="kpi-sub">bill + advance vs contract</div>
     </div>`;
 
+  renderSectionProgressDashboard();
+
+  // Hidden legacy charts retained for export/print compatibility.
   // S-curve (cumulative %)
   const cum = cumulativeSeries();
   const sLabels = cum.map(x=>x.date.slice(5));
@@ -8137,11 +8401,10 @@ function renderDashboard(){
     }).join('');
   }
 
-  // Linear progress, length charts and Plan vs Actual chart
+  // Linear progress and length charts
   renderLinearProgress();
   renderLengthCharts();
   renderCustomLengthItems();
-  renderPVA();
   renderCostBreakdown();
   renderFinancialProgress();
   renderDailyProgressSummary();
@@ -8361,14 +8624,14 @@ function renderCostBreakdown(){
   host.innerHTML = `
     <div class="lp-tile-grid">
       ${tile('info', 'bank',          'Baseline Contract', 'original contract amount',
-              fmtCr(baseline), pct(baseline),
+              fmtCr(costInclVat(baseline)), pct(baseline),
               revised ? fmtPct((baseline/revised)*100) + ' of revised' : '—')}
       ${tile('warn', 'plus-circle',   'Variation Orders',  'approved variations',
-              fmtCr(vo), pct(vo),
+              fmtCr(costInclVat(vo)), pct(vo),
               revised ? fmtPct((vo/revised)*100) + ' of revised' : 'no variations')}
       ${tile('',     'arrow-repeat',  'Revised Total',     'baseline + variations',
-              fmtCr(revised), 100,
-              'reference total')}
+              fmtCr(costInclVat(revised)), 100,
+              `${projectVatPct()}% VAT included`)}
       ${tile('good', 'check2-circle', 'Billed / Earned',   'live from daily logs',
               fmtCr(earned), pct(earned),
               `${state.logs.length} log entries`)}
@@ -9029,6 +9292,19 @@ function migrateLengthTracking(){
   if(changed){ try{ save(); }catch(e){} }
 }
 
+function migrateProjectDatesVatOnce(){
+  state.project = state.project || {};
+  if(state.project.dateVatDefaults20260524) return;
+  state.project.startDate = '2024-08-15';
+  state.project.endDate = '2027-07-15';
+  state.project.revStartDate = '2024-08-15';
+  state.project.revEndDate = '2028-02-03';
+  state.project.vatPct = Number(state.project.vatPct ?? 13) || 13;
+  syncProjectCostsFromItems();
+  state.project.dateVatDefaults20260524 = true;
+  try{ save(); }catch(e){}
+}
+
 const shouldAutoLoadMewaKhola = !localStorage.getItem(STORAGE_KEY) || (
   !state.structures.length && !state.ipcs.length && !state.logs.length && !state.milestones.length &&
   state.project.contractNo === 'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01'
@@ -9040,6 +9316,7 @@ if(shouldAutoLoadMewaKhola){
     loadMewaKholaTemplate();
   }
 } else {
+  migrateProjectDatesVatOnce();
   migrateLengthTracking();
   renderProject();
   renderSetup();
@@ -9079,7 +9356,7 @@ window.addEventListener('hpmsDataUpdated', () => {
         data.username = data.username || '';
         data.role = data.role || 'guest';
         data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
-        data.project = Object.assign({contractNo:'', contractValue:0, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
+        data.project = Object.assign({contractNo:'', contractValue:0, baselineCost:0, voCost:0, revisedCost:0, vatPct:13, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
         return data;
       }
     }catch(e){}
