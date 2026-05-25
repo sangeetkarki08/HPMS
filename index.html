@@ -1577,10 +1577,16 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
             <div class="field"><label>VO Cost</label><input type="number" id="pVoCost" step="0.01" placeholder="Variation order costs"></div>
             <div class="field"><label>Revised Cost</label><input type="number" id="pRevisedCost" step="0.01" placeholder="Total revised contract value"></div>
             <div class="field"><label>VAT (%)</label><input type="number" id="pVatPct" step="0.01" placeholder="13"></div>
-            <div class="field"><label>Baseline Start</label><input type="date" id="pStart"></div>
-            <div class="field"><label>Baseline End</label><input type="date" id="pEnd"></div>
-            <div class="field"><label>Revised Start (optional)</label><input type="date" id="pRevStart"></div>
-            <div class="field"><label>Revised End (optional)</label><input type="date" id="pRevEnd"></div>
+            <div class="field"><label>Baseline Start Date</label><input type="date" id="pStart"></div>
+            <div class="field"><label>Baseline Completion Date</label><input type="date" id="pEnd"></div>
+            <div class="field"><label>Revised Start Date</label><input type="date" id="pRevStart"></div>
+            <div class="field"><label>Revised Completion Date</label><input type="date" id="pRevEnd"></div>
+            <div class="field"><label>Baseline Duration</label><input type="text" id="pBaselineDuration" readonly></div>
+            <div class="field"><label>Revised Duration</label><input type="text" id="pRevisedDuration" readonly></div>
+            <div class="field"><label>Time Extension</label><input type="text" id="pTimeExtension" readonly></div>
+            <div class="field"><label>Time Elapsed</label><input type="text" id="pTimeElapsed" readonly></div>
+            <div class="field"><label>Remaining Time</label><input type="text" id="pRemainingTime" readonly></div>
+            <div class="field"><label>Schedule Progress %</label><input type="text" id="pScheduleProgress" readonly></div>
             <div class="field" style="grid-column:1/-1"><label>Time Extension Reason</label><input type="text" id="pExtReason" placeholder="e.g. Force majeure, design change, monsoon delay"></div>
             <div class="field" style="grid-column:1/-1">
               <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text-1)">
@@ -2071,6 +2077,14 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
           <span style="font-size:11px;color:var(--text-3)" id="timelineSubText">baseline vs revised</span>
         </div>
         <div class="card-body" id="timelineHost"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px" id="scheduleProgressCard">
+        <div class="card-head">
+          <h3><i class="bi bi-speedometer" style="margin-right:6px;color:var(--brand)"></i> Schedule Progress</h3>
+          <span style="font-size:11px;color:var(--text-3)">physical progress vs schedule progress</span>
+        </div>
+        <div class="card-body" id="scheduleProgressHost"></div>
       </div>
 
       <div class="kpi-grid" id="kpiHost"></div>
@@ -2805,6 +2819,30 @@ const fmtCr = n=>{
 const ccy = ()=>state.project.currency || 'NPR';
 const money2 = n => (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const moneyFull = n => `${ccy()} ${money2(n)}`;
+function parseDateOnly(value){
+  if(!value) return null;
+  const parts = String(value).split('-').map(Number);
+  if(parts.length !== 3 || parts.some(x=>!Number.isFinite(x))) return null;
+  return new Date(parts[0], parts[1]-1, parts[2]);
+}
+function todayDateOnly(){
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  return d;
+}
+function daysBetween(start, end){
+  if(!start || !end) return 0;
+  return Math.round((end - start) / 86400000);
+}
+function fmtDateLong(value){
+  const d = typeof value === 'string' ? parseDateOnly(value) : value;
+  return d ? d.toLocaleDateString('en-GB', {day:'2-digit', month:'long', year:'numeric'}) : '-';
+}
+function fmtDuration(days){
+  const d = Math.round(Number(days)||0);
+  const months = d ? d / 30.4375 : 0;
+  return `${d} days (${months.toFixed(1)} months)`;
+}
 
 /* ---- Activity templates ---- */
 const ACTIVITY_TEMPLATES = {
@@ -3098,6 +3136,29 @@ const structPct = s => { const a = structAmount(s); return a ? (structEarned(s)/
 const projectAmount = () => state.structures.filter(s=>s.parentId===null).reduce((sum,s)=>sum+structAmount(s), 0);
 const projectEarned = () => state.structures.filter(s=>s.parentId===null).reduce((sum,s)=>sum+structEarned(s), 0);
 const overallPct = () => { const a = projectAmount(); return a ? (projectEarned()/a)*100 : 0; };
+function physicalProgressPct(){
+  const total = projectAmountExVat();
+  const earned = (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status)).reduce((s,i)=>s+calcIPC(i).net,0);
+  return total ? (earned / total) * 100 : 0;
+}
+function scheduleMetrics(){
+  const bs = parseDateOnly(state.project.startDate || '2024-08-15');
+  const be = parseDateOnly(state.project.endDate || '2027-07-15');
+  const rs = parseDateOnly(state.project.revStartDate || state.project.startDate || '2024-08-15');
+  const re = parseDateOnly(state.project.revEndDate || state.project.endDate || '2028-02-03');
+  const today = todayDateOnly();
+  const baselineDuration = Math.max(0, daysBetween(bs, be));
+  const revisedDuration = Math.max(1, daysBetween(rs, re));
+  const timeExtension = daysBetween(be, re);
+  const rawElapsed = daysBetween(rs, today);
+  const timeElapsed = Math.max(0, Math.min(revisedDuration, rawElapsed));
+  const remainingTime = Math.max(0, daysBetween(today, re));
+  const scheduleProgress = Math.max(0, Math.min(100, (timeElapsed / revisedDuration) * 100));
+  const physicalProgress = physicalProgressPct();
+  const variance = physicalProgress - scheduleProgress;
+  const status = variance >= 2 ? 'Ahead' : variance <= -2 ? 'Delayed' : 'On Schedule';
+  return {bs,be,rs,re,today,baselineDuration,revisedDuration,timeExtension,timeElapsed,remainingTime,scheduleProgress,physicalProgress,variance,status};
+}
 const structWeight = s => {
   if(s.weightage !== null && s.weightage !== undefined && s.weightage !== '') return Number(s.weightage);
   const total = projectAmount();
@@ -3190,6 +3251,7 @@ function renderProject(){
   const canOverride = !!state.project.allowContractOverride && state.role === 'admin';
   document.getElementById('pContractValue').readOnly = !canOverride;
   document.getElementById('pBaselineCost').readOnly = true;
+  renderProjectScheduleFields();
 
   const nm = state.project.name || 'Untitled Project';
   const meta = state.project.capacity ? `${state.project.capacity} ${state.project.capacityUnit||''} · ${state.project.type||''}` : 'Configure in Setup';
@@ -3216,6 +3278,7 @@ function renderProject(){
       document.getElementById('pVoCost').value = state.project.voCost ? Number(state.project.voCost).toFixed(2) : '';
     }
     renderProjectCostFormula();
+    renderProjectScheduleFields();
     save();
     if(id==='pName' || id==='pCap' || id==='pCapUnit' || id==='pType'){
       const nm = state.project.name || 'Untitled Project';
@@ -3229,6 +3292,17 @@ function renderProject(){
     }
   });
 });
+
+function renderProjectScheduleFields(){
+  const m = scheduleMetrics();
+  const set = (id, value) => { const el = document.getElementById(id); if(el) el.value = value; };
+  set('pBaselineDuration', fmtDuration(m.baselineDuration));
+  set('pRevisedDuration', fmtDuration(m.revisedDuration));
+  set('pTimeExtension', `${m.timeExtension >= 0 ? '+' : ''}${fmtDuration(m.timeExtension)}`);
+  set('pTimeElapsed', fmtDuration(m.timeElapsed));
+  set('pRemainingTime', fmtDuration(m.remainingTime));
+  set('pScheduleProgress', fmtPct(m.scheduleProgress));
+}
 
 function toggleContractOverride(){
   state.project.allowContractOverride = !!document.getElementById('pAllowContractOverride').checked && state.role === 'admin';
@@ -8013,15 +8087,16 @@ function renderTimeline(){
   card.style.display = '';
 
   const dayMs = 86400000;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const bs = new Date(baseStart), be = new Date(baseEnd);
-  const baseDays = Math.round((be - bs)/dayMs);
+  const m = scheduleMetrics();
+  const today = m.today;
+  const bs = m.bs, be = m.be;
+  const baseDays = m.baselineDuration;
 
   // Determine if revised exists
   const hasRevised = !!(revStart || revEnd);
-  const rs = new Date(revStart || baseStart);
-  const re = new Date(revEnd || baseEnd);
-  const revDays = Math.round((re - rs)/dayMs);
+  const rs = m.rs;
+  const re = m.re;
+  const revDays = m.revisedDuration;
 
   // Use the wider span for horizontal scale (so neither bar overflows)
   const overallStart = bs < rs ? bs : rs;
@@ -8036,13 +8111,13 @@ function renderTimeline(){
   const inWindow = today >= overallStart && today <= overallEnd;
 
   // Progress %s vs each timeline
-  const overall = overallPct();   // earned-value progress %
+  const overall = m.physicalProgress;
   const baseElapsedDays = Math.max(0, Math.min(baseDays, Math.round((today - bs)/dayMs)));
   const baseElapsedPct = baseDays>0 ? (baseElapsedDays/baseDays)*100 : 0;
-  const revElapsedDays = Math.max(0, Math.min(revDays, Math.round((today - rs)/dayMs)));
-  const revElapsedPct = revDays>0 ? (revElapsedDays/revDays)*100 : 0;
+  const revElapsedDays = m.timeElapsed;
+  const revElapsedPct = m.scheduleProgress;
 
-  const extDays = revDays - baseDays;
+  const extDays = m.timeExtension;
   const extLabel = extDays > 0 ? `+${extDays} days extension` : extDays < 0 ? `${Math.abs(extDays)} days saved` : 'No change';
   const extCls = extDays > 0 ? 'tl-extension-badge' : extDays < 0 ? 'tl-saving-badge' : '';
 
@@ -8099,22 +8174,22 @@ function renderTimeline(){
   const daysRemaining = Math.max(0, Math.round((activeEnd - today)/dayMs));
   const remainingPct = activeTotalDays ? Math.max(0, Math.min(100, (daysRemaining/activeTotalDays)*100)) : 0;
 
-  const baselineTile = tile('info', 'flag', 'Baseline Schedule', `${baseStart} → ${baseEnd}`,
+  const baselineTile = tile('info', 'flag', 'Baseline Schedule', `${fmtDateLong(baseStart)} to ${fmtDateLong(baseEnd)}`,
     `${baseElapsedDays} / ${baseDays} d`, Math.min(100, baseElapsedPct),
     {unit:'days', note: `${fmtPct(baseElapsedPct)} elapsed`});
 
-  const revisedTile = hasRevised ? tile('warn', 'flag-fill', 'Revised Schedule', `${revStart||baseStart} → ${revEnd||baseEnd}`,
+  const revisedTile = hasRevised ? tile('warn', 'flag-fill', 'Revised Schedule', `${fmtDateLong(revStart||baseStart)} to ${fmtDateLong(revEnd||baseEnd)}`,
     `${revElapsedDays} / ${revDays} d`, Math.min(100, revElapsedPct),
     {unit:'days', note: `${extDays>0?'+':''}${extDays}d vs baseline`}) : '';
 
   const remainingTile = tile('', 'hourglass-split', 'Days Remaining',
-    `to ${hasRevised ? (revEnd||baseEnd) : baseEnd}`,
+    `to ${fmtDateLong(hasRevised ? (revEnd||baseEnd) : baseEnd)}`,
     `${daysRemaining} d`, remainingPct,
     {unit:'days', note: daysRemaining===0 ? 'completed/overdue' : 'until planned end'});
 
   const earnedTile = tile('good', 'check2-circle', 'Earned Progress', 'work physically completed',
     fmtPct(overall), Math.min(100, overall),
-    {unit:'', note: 'qty × rate / total'});
+    {unit:'', note: 'cumulative IPC / BOQ'});
 
   const varianceCls = variance >= 0 ? 'good' : 'bad';
   const varianceIcon = variance >= 0 ? 'arrow-up-circle' : 'arrow-down-circle';
@@ -8138,6 +8213,38 @@ function renderTimeline(){
       ${varianceTile}
     </div>
     ${reasonHtml}`;
+}
+
+function renderScheduleProgressDashboard(){
+  const host = document.getElementById('scheduleProgressHost');
+  if(!host) return;
+  const m = scheduleMetrics();
+  const variance = m.variance;
+  const statusClass = m.status === 'Ahead' ? 'good' : m.status === 'Delayed' ? 'bad' : 'info';
+  const statusIcon = m.status === 'Ahead' ? 'arrow-up-circle' : m.status === 'Delayed' ? 'exclamation-triangle' : 'check2-circle';
+  const extMonths = m.timeExtension / 30.4375;
+  const comparison = variance >= 0 ? `${variance.toFixed(1)}% ahead of schedule` : `${Math.abs(variance).toFixed(1)}% behind schedule`;
+  host.innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:14px">
+      <div class="kpi kpi-info"><div class="kpi-label">Baseline Start</div><div class="kpi-value" style="font-size:18px">${fmtDateLong(m.bs)}</div><div class="kpi-sub">contract baseline</div></div>
+      <div class="kpi kpi-info"><div class="kpi-label">Baseline End</div><div class="kpi-value" style="font-size:18px">${fmtDateLong(m.be)}</div><div class="kpi-sub">${fmtDuration(m.baselineDuration)}</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-label">Revised Start</div><div class="kpi-value" style="font-size:18px">${fmtDateLong(m.rs)}</div><div class="kpi-sub">active schedule</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-label">Revised End</div><div class="kpi-value" style="font-size:18px">${fmtDateLong(m.re)}</div><div class="kpi-sub">${fmtDuration(m.revisedDuration)}</div></div>
+      <div class="kpi"><div class="kpi-label">Time Extension</div><div class="kpi-value">${m.timeExtension >= 0 ? '+' : ''}${m.timeExtension} d</div><div class="kpi-sub">${extMonths >= 0 ? '+' : ''}${extMonths.toFixed(1)} months</div></div>
+      <div class="kpi"><div class="kpi-label">Time Elapsed</div><div class="kpi-value">${m.timeElapsed} d</div><div class="kpi-sub">from revised start</div></div>
+      <div class="kpi"><div class="kpi-label">Remaining Time</div><div class="kpi-value">${m.remainingTime} d</div><div class="kpi-sub">to revised completion</div></div>
+      <div class="kpi kpi-${statusClass}"><div class="kpi-icon"><i class="bi bi-${statusIcon}"></i></div><div class="kpi-label">Schedule Status</div><div class="kpi-value">${m.status}</div><div class="kpi-sub">${comparison}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-3);margin-bottom:6px"><strong style="color:var(--text-1)">Schedule Progress</strong><span>${fmtPct(m.scheduleProgress)}</span></div>
+        <div class="bar"><i style="width:${Math.min(100,m.scheduleProgress)}%"></i></div>
+      </div>
+      <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-3);margin-bottom:6px"><strong style="color:var(--text-1)">Physical Progress</strong><span>${fmtPct(m.physicalProgress)}</span></div>
+        <div class="bar bar-${statusClass}"><i style="width:${Math.min(100,m.physicalProgress)}%"></i></div>
+      </div>
+    </div>`;
 }
 
 let _heroDrag = null;
@@ -8199,18 +8306,11 @@ function renderHero(){
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
   const totalLogs = state.logs.length;
 
-  // Use revised timeline if set, else baseline
   const tl = activeTimeline();
-  let timeElapsedPct = 0;
-  let daysElapsed = 0, daysTotal = 0;
-  if(tl.start && tl.end){
-    const start = new Date(tl.start);
-    const end = new Date(tl.end);
-    const now = new Date();
-    daysTotal = Math.max(1, Math.round((end-start)/86400000));
-    daysElapsed = Math.max(0, Math.min(daysTotal, Math.round((now-start)/86400000)));
-    timeElapsedPct = (daysElapsed/daysTotal)*100;
-  }
+  const sm = scheduleMetrics();
+  const timeElapsedPct = sm.scheduleProgress;
+  const daysElapsed = sm.timeElapsed;
+  const daysTotal = sm.revisedDuration;
 
   const r = 72; const c = 2*Math.PI*r;
   const offset = c - (Math.min(100,overall)/100)*c;
@@ -8708,6 +8808,7 @@ function renderDashboard(){
   renderHero();
   initHeroCardDrag();
   renderTimeline();
+  renderScheduleProgressDashboard();
   renderDashboardMilestones();
   const c = chartCols();
   syncProjectCostsFromItems();
