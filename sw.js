@@ -8,7 +8,7 @@
   to force clients to fetch fresh copies.
 */
 
-const CACHE_VERSION = 'hpms-v2';
+const CACHE_VERSION = 'hpms-v3';
 const APP_SHELL = [
   './',
   './index.html',
