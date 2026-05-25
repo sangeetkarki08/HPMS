@@ -2792,6 +2792,7 @@ const DEFAULT = {
   milestones:[], // { id, wbs, name, duration, plannedStart, plannedEnd, actualStart, actualEnd, status, notes }
   projectMilestones:[], // { id, name, date, achieved, achievedDate, notes } — key project milestones shown on dashboard
   selectedLengthItems:[], // ["${structureId}:${itemId}"] - items chosen to track on dashboard length chart
+  lengthDashboardMode:'all', // all = show every linear BOQ item on dashboard; tracked = selected items only
   resources:[],   // daily manpower/equipment logs
   sites:[],       // working sites for resource tracking
   events:[],      // delay events
@@ -2817,6 +2818,7 @@ let state = (()=>{
       data.milestones = data.milestones || [];
       data.projectMilestones = data.projectMilestones || [];
       data.selectedLengthItems = data.selectedLengthItems || [];
+      data.lengthDashboardMode = data.lengthDashboardMode || 'all';
       data.resources = data.resources || [];
       data.sites = data.sites || [];
       data.resourceTemplates = data.resourceTemplates || {manpower:[],equipment:[]};
@@ -6306,12 +6308,14 @@ function renderCustomLengthItems(){
   if(!host) return;
   const all = getAllLengthItems();
   const sel = state.selectedLengthItems || [];
-  const selected = sel.map(k => {
+  const tracked = sel.map(k => {
     const [sid,iid] = k.split(':');
     return all.find(x=>x.structureId===sid && x.itemId===iid);
   }).filter(Boolean);
+  const mode = state.lengthDashboardMode || 'all';
+  const selected = mode === 'tracked' ? tracked : all;
 
-  if(subText) subText.textContent = `${all.length} length-wise items available · ${selected.length} selected`;
+  if(subText) subText.textContent = `${all.length} length-wise items available · ${tracked.length} pinned · showing ${mode === 'tracked' ? 'pinned only' : 'all'}`;
 
   if(!all.length){
     host.innerHTML = `<div class="lp-empty"><i class="bi bi-rulers"></i>No items with linear units (m, rm) found in your BOQ. Length-wise tracking applies to chainage, road length, drainage pipes, etc.</div>`;
@@ -6322,10 +6326,22 @@ function renderCustomLengthItems(){
     return;
   }
 
-  host.innerHTML = `<div class="lp-grid">${selected.map(it=>{
+  host.innerHTML = `
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:12px;color:var(--text-2);font-weight:700">
+        Showing ${selected.length} of ${all.length} length-wise BOQ items
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn ${mode==='all'?'btn-primary':'btn-ghost'} btn-sm" onclick="setLengthDashboardMode('all')"><i class="bi bi-rulers"></i> All</button>
+        <button class="btn ${mode==='tracked'?'btn-primary':'btn-ghost'} btn-sm" onclick="setLengthDashboardMode('tracked')"><i class="bi bi-pin-angle"></i> Pinned</button>
+        <button class="btn btn-soft btn-sm" onclick="trackAllLengthItems()"><i class="bi bi-check2-all"></i> Pin All</button>
+      </div>
+    </div>
+    <div class="lp-grid">${selected.map(it=>{
     const dat = getItemDailySeries(it.structureId, it.itemId);
     const cls = dat.pct >= 90 ? 'good' : dat.pct >= 60 ? 'info' : dat.pct >= 30 ? 'warn' : 'bad';
     const todayQty = (state.logs.filter(l=>l.structureId===it.structureId && l.itemId===it.itemId && l.date===new Date().toISOString().slice(0,10)).reduce((s,l)=>s+(Number(l.qty)||0),0));
+    const isPinned = (state.selectedLengthItems||[]).includes(it.key);
     return `<div class="lp-item-card">
       <div class="lp-item-head">
         <div class="lp-item-title">
@@ -6334,7 +6350,7 @@ function renderCustomLengthItems(){
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="lp-item-pct-pill ${cls}">${dat.pct.toFixed(1)}%</span>
-          <button class="lp-remove-btn" onclick="removeFromLengthSelection('${it.key}')" title="Remove from dashboard"><i class="bi bi-x-lg"></i></button>
+          <button class="btn btn-xs ${isPinned?'btn-primary':'btn-ghost'}" onclick="toggleItemLengthTracking('${it.structureId}','${it.itemId}')" title="${isPinned?'Pinned on dashboard - click to unpin':'Pin this item on dashboard'}"><i class="bi bi-${isPinned?'pin-angle-fill':'pin-angle'}"></i></button>
         </div>
       </div>
       <div class="lp-item-stats">
@@ -6369,6 +6385,22 @@ function toggleItemLengthTracking(sid, iid){
   }
   save();
   renderSetup();
+  renderCustomLengthItems();
+}
+
+function setLengthDashboardMode(mode){
+  state.lengthDashboardMode = mode === 'tracked' ? 'tracked' : 'all';
+  save();
+  renderCustomLengthItems();
+}
+
+function trackAllLengthItems(){
+  state.selectedLengthItems = getAllLengthItems().map(x=>x.key);
+  state.lengthDashboardMode = 'all';
+  save();
+  renderCustomLengthItems();
+  if(document.getElementById('page-setup')?.classList.contains('active')) renderSetup();
+  toast('All length-wise BOQ items are now pinned for dashboard tracking','good');
 }
 
 function removeFromLengthSelection(key){
@@ -8306,7 +8338,8 @@ function loadMewaKholaTemplate(){
       }
     });
   });
-  state.selectedLengthItems = defaultLengthSelections.slice(0, 8);
+  state.selectedLengthItems = defaultLengthSelections;
+  state.lengthDashboardMode = 'all';
 
   save();
   renderProject();
@@ -8364,6 +8397,7 @@ function loadIPSAllDataTemplate(force=false){
   state.infrastructure = [];
   state.infraFacilities = [];
   state.selectedLengthItems = [];
+  state.lengthDashboardMode = 'all';
 
   const root = {id:uid(), name:'IPS-All BOQ from Excel', category:'group', parentId:null, length:null, weightage:null, items:[]};
   state.structures.push(root);
@@ -8441,8 +8475,9 @@ function loadIPSAllDataTemplate(force=false){
 
 function getLinearStructures(){
   return state.structures.filter(s => {
-    if(!s.length || !s.length>0) return false;
-    return (s.items||[]).some(i => (i.unit||'').toLowerCase()==='m');
+    const mItems = (s.items||[]).filter(i => (i.unit||'').toLowerCase()==='m');
+    if(!mItems.length) return false;
+    return Number(s.length) > 0 || mItems.some(i => Number(i.plannedQty) > 0);
   });
 }
 
@@ -10805,6 +10840,7 @@ window.addEventListener('hpmsDataUpdated', () => {
         data.milestones = data.milestones || [];
         data.projectMilestones = data.projectMilestones || [];
         data.selectedLengthItems = data.selectedLengthItems || [];
+        data.lengthDashboardMode = data.lengthDashboardMode || 'all';
         data.resources = data.resources || [];
         data.sites = data.sites || [];
         data.resourceTemplates = data.resourceTemplates || {manpower:[],equipment:[]};
