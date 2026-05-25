@@ -151,6 +151,14 @@ main{padding:24px;max-width:1400px;margin:0 auto;width:100%}
 .tunnel-ring{text-align:center;min-width:0}
 .tunnel-ring .lp-donut{margin:0 auto 4px}
 .tunnel-ring-label{font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.progress-filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.progress-filter-bar select{background:var(--bg-2);border:1px solid var(--line);color:var(--text-1);padding:6px 10px;border-radius:7px;font-size:12px;outline:none;min-width:150px}
+.vertical-progress{height:220px;width:54px;border:1px solid var(--line);background:var(--bg-2);border-radius:8px;position:relative;overflow:hidden;margin:auto}
+.vertical-progress-fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,var(--brand-2),var(--brand));}
+.vertical-progress-label{position:absolute;inset:0;display:grid;place-items:center;font-family:'JetBrains Mono';font-weight:800;color:var(--text-1);font-size:12px;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.ipc-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px}
+.ipc-card-btn{border:1px solid var(--line);background:var(--bg-2);border-radius:8px;padding:10px;cursor:pointer;color:var(--text-1);font-weight:800;text-align:center}
+.ipc-card-btn:hover,.ipc-card-btn.active{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
 
 /* Buttons */
 .btn{
@@ -1601,6 +1609,13 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
       </div>
 
       <div class="setup-section" id="setupProgressSection">
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-receipt" style="margin-right:6px;color:var(--brand)"></i> IPC Progress Setup</h3>
+          <span style="font-size:11px;color:var(--text-3)">IPC-wise, non-cumulative quantities and amounts</span>
+        </div>
+        <div class="card-body" id="ipcSetupHost"></div>
+      </div>
       <div class="card" style="margin-bottom:18px" id="midProjectCard">
         <div class="card-head">
           <h3><i class="bi bi-clock-history" style="margin-right:6px;color:var(--brand)"></i> Progress to Date (Mid-Project Setup)</h3>
@@ -2138,6 +2153,30 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
           <span style="font-size:11px;color:var(--text-3)">section-wise length and category progress from cumulative IPC quantities</span>
         </div>
         <div class="card-body" id="tunnelProgressHost"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px" id="powerhouseProgressCard">
+        <div class="card-head">
+          <h3><i class="bi bi-building-fill-down" style="margin-right:6px;color:var(--brand)"></i> Powerhouse Height-wise Excavation</h3>
+          <span style="font-size:11px;color:var(--text-3)">level progress from starting elevation to required final level</span>
+        </div>
+        <div class="card-body" id="powerhouseProgressHost"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px" id="breakdownProgressCard">
+        <div class="card-head">
+          <h3><i class="bi bi-sliders" style="margin-right:6px;color:var(--brand)"></i> Surface &amp; Underground Breakdown Progress</h3>
+          <span style="font-size:11px;color:var(--text-3)">filter by section, location, type, work category, and IPC</span>
+        </div>
+        <div class="card-body" id="breakdownProgressHost"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px" id="dashboardIpcWiseCard">
+        <div class="card-head">
+          <h3><i class="bi bi-receipt-cutoff" style="margin-right:6px;color:var(--brand)"></i> IPC-wise Non-cumulative Progress</h3>
+          <span style="font-size:11px;color:var(--text-3)">each IPC shown separately; cumulative totals are used only in summaries</span>
+        </div>
+        <div class="card-body" id="dashboardIpcWiseHost"></div>
       </div>
 
       <div class="g2" style="margin-bottom:18px" id="lengthChartsRow">
@@ -2806,7 +2845,7 @@ window.HPMS_flushSave = flushSave;
 const uid = ()=>'i'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const fmt = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0'; return Math.round(n).toLocaleString(); };
 const fmt2 = n=>{ if(!isFinite(n)||n===null||n===undefined) return '0.00'; return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };
-const fmtPct = n=>{ if(!isFinite(n)) return '0.0%'; return n.toFixed(1)+'%'; };
+const fmtPct = n=>{ if(!isFinite(n)) return '0.00%'; return n.toFixed(2)+'%'; };
 /* Compact Indian/Nepali currency formatter — keeps KPI tiles narrow.
    >= 1 Cr → "X.XX Cr", >= 1 L → "X.XX L", else raw thousands separator. */
 const fmtCr = n=>{
@@ -3048,18 +3087,38 @@ const WORK_CATEGORIES = [
   'Excavation','Support Works','Concreting','Reinforcement / Rebar','Formwork','Shotcrete',
   'Rock Bolt','Steel Works','Grouting','Backfilling','Finishing Works','General / Other Works'
 ];
+const BREAKDOWN_CATEGORIES = ['Excavation','Support Works','Concreting','Reinforcement Bar / Rebar','Formwork','Other Works'];
 const BOQ_HEADINGS = [
   'General Items','Weir','Intake','Gravel Trap / Desander','Headrace Tunnel','Surge Shaft',
   'Penstock','Powerhouse','Tailrace','Road Works','Hydro-Mechanical Works','Electro-Mechanical Works','Other Works'
 ];
+const UNDERGROUND_LENGTH_PROGRESS = [
+  {name:'Headrace Tunnel / HRT', aliases:['headrace','hrt'], original:3740.00, completed:9.73},
+  {name:'Vertical Shaft', aliases:['vertical shaft'], original:187.00, completed:118.00},
+  {name:'Adit-1', aliases:['adit-1','adit 1'], original:200.00, completed:0.00},
+  {name:'Adit-3', aliases:['adit-3','adit 3'], original:167.00, completed:167.00},
+  {name:'Horizontal Shaft', aliases:['horizontal shaft','horizontal tunnel'], original:167.00, completed:157.00},
+  {name:'Bifurcation', aliases:['bifurcation'], original:30.00, completed:0.00}
+];
+const POWERHOUSE_LEVEL_PROGRESS = {start:2092.00, final:2022.00, current:2042.00};
+function cleanItemNo(no){
+  const raw = String(no ?? '').trim();
+  if(!raw) return '';
+  const m = raw.match(/^\d+\.0+(\d{2})$/);
+  if(m) return m[1];
+  const m2 = raw.match(/^\d+\.0+(\d+)$/);
+  if(m2) return m2[1].slice(-2).padStart(2,'0');
+  return raw;
+}
+function displayItemNo(iOrNo){ return cleanItemNo(typeof iOrNo === 'object' ? (iOrNo.itemNo || iOrNo.originalItemNo || '') : iOrNo); }
 function inferWorkCategory(activity){
   const a = String(activity||'').toLowerCase();
+  if(/rebar|reinforcement|tmt|bar reinforcement|tor steel/.test(a)) return 'Reinforcement / Rebar';
   if(/rock\s*bolt|rockbolt/.test(a)) return 'Rock Bolt';
   if(/shotcrete|sfrs/.test(a)) return 'Shotcrete';
   if(/lattice|steel rib|wire ?mesh|forepol|support/.test(a)) return 'Support Works';
   if(/excavat|cutting|muck|spoil|hard rock|soft rock|drill|blast|breaker|advance|chainage/.test(a)) return 'Excavation';
   if(/concrete|rcc|pcc|m10|m15|m20|m25|m30|m35|m40|plum|lining|infill|invert/.test(a)) return 'Concreting';
-  if(/rebar|reinforcement|tmt|bar reinforcement|tor steel/.test(a)) return 'Reinforcement / Rebar';
   if(/formwork|shuttering|centering/.test(a)) return 'Formwork';
   if(/steel|rib|is[mh]b|gate|pipe|penstock/.test(a)) return 'Steel Works';
   if(/grout/.test(a)) return 'Grouting';
@@ -3069,6 +3128,8 @@ function inferWorkCategory(activity){
 }
 function normalizeBoqItem(i){
   if(!i) return i;
+  if(i.originalItemNo === undefined && i.itemNo !== undefined) i.originalItemNo = i.itemNo;
+  if(i.itemNo !== undefined) i.itemNo = cleanItemNo(i.itemNo);
   if(i.originalQty === undefined) i.originalQty = Number(i.plannedQty)||0;
   if(i.addedQty === undefined) i.addedQty = isVoItem(i) ? (Number(i.plannedQty)||0) : 0;
   if(i.revisedQty === undefined) i.revisedQty = Number(i.plannedQty)||((Number(i.originalQty)||0)+(Number(i.addedQty)||0));
@@ -3333,7 +3394,7 @@ function showSetupSection(section){
   const map = {project:'setupProjectInfoSection', boq:'setupBoqSection', progress:'setupProgressSection'};
   document.getElementById(map[state.setupSection] || map.project)?.classList.add('active');
   if(state.setupSection==='boq') renderSetup();
-  if(state.setupSection==='progress') renderMidProject();
+  if(state.setupSection==='progress') { renderIPCSetup(); renderMidProject(); }
   try{ save(); }catch(e){}
 }
 
@@ -3417,6 +3478,66 @@ function renderMidProject(){
         </div>`;
     }).join('')}`;
   applyPermissions();
+}
+
+function selectSetupIpc(no){
+  state.setupIpcNo = no;
+  save();
+  renderIPCSetup();
+}
+
+function ipcBoqLookup(line){
+  const key = ipcLineKey(line);
+  const rows = boqFlatRows();
+  return rows.find(r=>r.key===key) || rows.find(r=>String(r.sectionName).trim()===(line.structure||line.boqSection||'') && displayItemNo(r.item)===cleanItemNo(line.itemNo||'')) || null;
+}
+
+function renderIPCSetup(){
+  const host = document.getElementById('ipcSetupHost');
+  if(!host) return;
+  migrateIpcLineItems();
+  const ipcs = (state.ipcs||[]).slice().sort((a,b)=>ipcSortNo(a)-ipcSortNo(b));
+  const labels = Array.from({length:10}, (_,i)=>`IPC-${String(i+1).padStart(2,'0')}`);
+  const activeNo = state.setupIpcNo || (ipcs[0]?.no) || labels[0];
+  state.setupIpcNo = activeNo;
+  const active = ipcs.find(i=>i.no===activeNo);
+  const cardBtns = labels.map(no=>`<button class="ipc-card-btn ${activeNo===no?'active':''}" onclick="selectSetupIpc('${no}')">IPC ${Number(no.replace(/\D/g,''))}</button>`).join('') +
+    `<button class="ipc-card-btn" onclick="addIPC()">Add New IPC</button>`;
+  if(!active){
+    host.innerHTML = `<div class="ipc-card-grid">${cardBtns}</div><div class="empty"><i class="bi bi-receipt"></i><div class="empty-title">${escapeHtml(activeNo)} has no data</div><div class="empty-sub">Use Add New IPC or import IPC data to populate this table.</div></div>`;
+    return;
+  }
+  const rows = (active.lineItems||[]).map(line=>{
+    const boq = ipcBoqLookup(line);
+    const item = boq?.item || {};
+    const qty = Number(line.qty)||0;
+    const amount = Number(line.amount)||0;
+    const rate = qty ? amount/qty : (Number(item.rate)||0);
+    return `<tr>
+      <td>${escapeHtml(active.no||'')}</td>
+      <td>${escapeHtml(active.submittedDate || active.approvedDate || active.paidDate || active.periodTo || active.periodFrom || '')}</td>
+      <td>${escapeHtml(line.structure||line.boqSection||'')}</td>
+      <td>${escapeHtml(line.location || boq?.location || line.structure || '')}</td>
+      <td>${escapeHtml(breakdownCategory(line.workCategory || line.description || line.activity))}</td>
+      <td>${escapeHtml(cleanItemNo(line.itemNo || item.itemNo || ''))}</td>
+      <td>${escapeHtml(line.description || line.activity || item.activity || '')}</td>
+      <td>${escapeHtml(line.unit || item.unit || '')}</td>
+      <td class="num">${fmt2(Number(item.originalQty)||Number(item.plannedQty)||0)}</td>
+      <td class="num">${fmt2(Number(item.revisedQty)||Number(item.plannedQty)||0)}</td>
+      <td class="num">${fmt2(qty)}</td>
+      <td class="num">${money2(rate)}</td>
+      <td class="num">${money2(amount)}</td>
+      <td>${escapeHtml(line.remarks || active.remarks || '')}</td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="ipc-card-grid">${cardBtns}</div>
+    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
+      <table style="font-size:11px">
+        <thead><tr><th>IPC No.</th><th>IPC Date</th><th>Section</th><th>Location</th><th>Work Category</th><th>Item No.</th><th>Description</th><th>Unit</th><th class="num">BOQ Qty</th><th class="num">Revised BOQ Qty</th><th class="num">This IPC Qty</th><th class="num">Rate</th><th class="num">This IPC Amount</th><th>Remarks</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="14" style="text-align:center;color:var(--text-3);padding:24px">No non-cumulative line items in ${escapeHtml(active.no)}.</td></tr>`}</tbody>
+      </table>
+    </div>`;
 }
 
 function resetAllStarting(){
@@ -3676,7 +3797,7 @@ function renderBoqItemsTable(s, items){
         ? `<button class="btn btn-xs ${tracked?'btn-primary':'btn-ghost'}" onclick="toggleItemLengthTracking('${s.id}','${i.id}')" title="${tracked?'Tracked on dashboard - click to untrack':'Track this item on the dashboard'}"><i class="bi bi-${tracked?'check2-square':'plus-square'}"></i></button>`
         : `<span style="color:var(--text-3);font-size:11px;opacity:.5" title="Length tracking only available for items with unit m or rm">-</span>`;
       return `<tr>
-        <td><input type="text" value="${escapeHtml(i.itemNo||'')}" onchange="updateItemField('${s.id}','${i.id}','itemNo',this.value)" placeholder="No."></td>
+        <td><input type="text" value="${escapeHtml(displayItemNo(i))}" onchange="updateItemField('${s.id}','${i.id}','itemNo',this.value)" placeholder="No."></td>
         <td><input type="text" value="${escapeHtml(i.activity)}" onchange="updateItemField('${s.id}','${i.id}','activity',this.value)"></td>
         <td><input type="text" value="${escapeHtml(i.unit)}" onchange="updateItemField('${s.id}','${i.id}','unit',this.value)" style="text-align:center"></td>
         <td><input type="number" class="num-input" step="0.01" value="${i.originalQty}" onchange="updateItemField('${s.id}','${i.id}','originalQty',this.value)"></td>
@@ -4646,7 +4767,7 @@ function ipcSortNo(ipc){
 function ipcLineKey(line){
   return [
     String(line.boqSection || line.structure || '').toLowerCase().trim(),
-    String(line.itemNo || '').toLowerCase().trim(),
+    cleanItemNo(line.itemNo || '').toLowerCase().trim(),
     String(line.description || line.activity || '').toLowerCase().replace(/^\s*[\d.]+\s*-\s*/,'').trim()
   ].join('|');
 }
@@ -4680,7 +4801,8 @@ function ipsAllLineItemsForIpc(no){
     return {
       structure: src.section || 'BOQ',
       boqSection: src.section || 'BOQ',
-      itemNo: src.itemNo || '',
+      originalItemNo: src.itemNo || '',
+      itemNo: cleanItemNo(src.itemNo || ''),
       description: src.description || 'BOQ item',
       activity: `${src.itemNo ? src.itemNo + ' - ' : ''}${src.description||'BOQ item'}`,
       unit: normaliseIpsUnit(src.unit, src.description),
@@ -4949,6 +5071,7 @@ function renderIPC(){
   document.getElementById('advRecovered').value = state.payment.advanceRecovered || '';
 
   renderIPCKpis();
+  renderIPCSetup();
 
   const tbody = document.getElementById('ipcTbody');
   if(!state.ipcs.length){
@@ -4988,9 +5111,9 @@ function renderIPC(){
           const prev = cumulativeForLineBefore(ipc, x);
           const curQty = Number(x.qty)||0;
           const curAmt = Number(x.amount)||0;
-          return `<tr>
-          <td>${escapeHtml(x.structure||'')}</td>
-          <td>${escapeHtml(x.itemNo||'')}</td>
+      return `<tr>
+        <td>${escapeHtml(x.structure||'')}</td>
+          <td>${escapeHtml(cleanItemNo(x.itemNo||''))}</td>
           <td>${escapeHtml(x.description||x.activity||'')}</td>
           <td>${escapeHtml(x.unit||'')}</td>
           <td class="num">${fmt2(prev.qty)}</td>
@@ -7726,7 +7849,8 @@ function loadIPSAllDataTemplate(force=false){
     const activity = `${src.itemNo ? src.itemNo + ' - ' : ''}${src.description||'BOQ item'}`;
     s.items.push({
       id:uid(),
-      itemNo: src.itemNo || '',
+      originalItemNo: src.itemNo || '',
+      itemNo: cleanItemNo(src.itemNo || ''),
       activity: src.description || activity,
       unit:normaliseIpsUnit(src.unit, src.description),
       originalQty:qty,
@@ -8553,6 +8677,7 @@ const BOQ_PROGRESS_CATEGORIES = {
 
 function classifyBoqCategory(activity){
   const label = inferWorkCategory(activity);
+  if(label==='General / Other Works' && /rebar|reinforcement|tmt|bar reinforcement|tor steel/i.test(String(activity||''))) return 'rebar';
   if(label==='Excavation') return 'excavation';
   if(label==='Shotcrete') return 'shotcrete';
   if(label==='Rock Bolt') return 'rockbolt';
@@ -8569,6 +8694,20 @@ function classifyBoqCategory(activity){
   return 'other';
 }
 
+function breakdownCategory(labelOrActivity){
+  const key = classifyBoqCategory(labelOrActivity);
+  if(key === 'excavation') return 'Excavation';
+  if(['support','shotcrete','rockbolt','steel','grouting'].includes(key)) return 'Support Works';
+  if(key === 'concreting') return 'Concreting';
+  if(key === 'rebar') return 'Reinforcement Bar / Rebar';
+  if(key === 'formwork') return 'Formwork';
+  return 'Other Works';
+}
+
+function sectionType(sectionName){
+  return /tunnel|adit|shaft|hrt|bifurcation|underground|surge/i.test(sectionName||'') ? 'Underground' : 'Surface';
+}
+
 function getDashboardSections(){
   return (state.structures||[]).filter(s => s.category !== 'group' && (s.items||[]).length);
 }
@@ -8583,8 +8722,10 @@ function boqFlatRows(){
         item:i,
         sectionName:s.name,
         heading:boqHeadingForSection(s.name),
-        key:ipcLineKey({structure:s.name,itemNo:i.itemNo,description:i.activity,activity:i.activity}),
+        key:ipcLineKey({structure:s.name,itemNo:displayItemNo(i),description:i.activity,activity:i.activity}),
         category:classifyBoqCategory(i.workCategory || i.activity),
+        breakdownCategory:breakdownCategory(i.workCategory || i.activity),
+        type:sectionType(s.name),
         location:i.location || s.name,
         originalAmount:itemOriginalAmount(i),
         revisedAmount:itemAmount(i),
@@ -8598,9 +8739,9 @@ function boqFlatRows(){
   return rows;
 }
 
-function cumulativeIpcMap(finalOnly=true){
+function cumulativeIpcMap(finalOnly=true, ipcNo=''){
   const map = new Map();
-  (state.ipcs||[]).filter(i=>!finalOnly || isFinalIpcStatus(i.status)).forEach(ipc=>{
+  (state.ipcs||[]).filter(i=>(!finalOnly || isFinalIpcStatus(i.status)) && (!ipcNo || i.no===ipcNo)).forEach(ipc=>{
     (ipc.lineItems||[]).forEach(line=>{
       const key = ipcLineKey(line);
       const cur = map.get(key) || {qty:0, amount:0};
@@ -8741,12 +8882,6 @@ function renderSectionProgressDashboard(sectionId){
 function renderTunnelProgressMonitoring(){
   const host = document.getElementById('tunnelProgressHost');
   if(!host) return;
-  const tunnels = getDashboardSections().filter(s=>/tunnel|adit|shaft|hrt|surge/i.test(s.name) || s.category==='tunnel' || s.category==='underground');
-  if(!tunnels.length){
-    host.innerHTML = `<div class="empty"><i class="bi bi-circle-half"></i><div class="empty-title">No tunnel sections</div><div class="empty-sub">Create tunnel/adit/shaft BOQ sections in BOQ Setup.</div></div>`;
-    return;
-  }
-  const ipcMap = cumulativeIpcMap(true);
   const R = 30, CIRC = 2 * Math.PI * R;
   const donut = (pct, cls='') => {
     const p = Math.max(0, Math.min(100, Number(pct)||0));
@@ -8759,48 +8894,153 @@ function renderTunnelProgressMonitoring(){
       <div class="lp-donut-pct">${p.toFixed(0)}%</div>
     </div>`;
   };
-  host.innerHTML = `<div class="tunnel-monitor-grid">${tunnels.map(s=>{
-    const rows = (s.items||[]).map(i=>{
-      normalizeBoqItem(i);
-      const prog = findIpcProgressForBoqRow({
-        section:s,item:i,sectionName:s.name,
-        key:ipcLineKey({structure:s.name,itemNo:i.itemNo,description:i.activity,activity:i.activity})
-      }, ipcMap);
-      return {item:i, cat:classifyBoqCategory(i.workCategory||i.activity), planned:Number(i.revisedQty)||0, done:Number(prog.qty)||0, amount:Number(prog.amount)||0};
-    });
-    const lengthItems = rows.filter(r=>String(r.item.unit||'').toLowerCase()==='m' || /length|advance|chainage/i.test(r.item.activity||''));
-    const totalLen = Number(s.length)||lengthItems.reduce((a,r)=>a+r.planned,0)||rows.filter(r=>r.cat==='excavation').reduce((a,r)=>a+r.planned,0);
-    const lengthDone = name => {
-      const arr = lengthItems.filter(r=>name==='excavation' ? /excavat|advance|chainage|length/i.test(r.item.activity||'') : new RegExp(name,'i').test(r.item.activity||''));
-      return arr.reduce((a,r)=>a+r.done,0);
-    };
-    const excavation = lengthDone('excavation') || rows.filter(r=>r.cat==='excavation').reduce((a,r)=>a+r.done,0);
-    const support = rows.filter(r=>['support','shotcrete','rockbolt','steel','grouting'].includes(r.cat)).reduce((a,r)=>a+r.done,0);
-    const concreting = rows.filter(r=>r.cat==='concreting').reduce((a,r)=>a+r.done,0);
-    const balance = Math.max(0, (totalLen||0) - excavation);
-    const catRows = Object.keys(BOQ_PROGRESS_CATEGORIES).map(k=>{
-      const arr = rows.filter(r=>r.cat===k);
-      const planned = arr.reduce((a,r)=>a+r.planned,0);
-      const done = arr.reduce((a,r)=>a+r.done,0);
-      return {key:k,label:BOQ_PROGRESS_CATEGORIES[k],planned,done,pct:planned?(done/planned)*100:0};
-    }).filter(x=>x.planned || x.done).slice(0,6);
+  const totalOriginal = UNDERGROUND_LENGTH_PROGRESS.reduce((s,x)=>s+x.original,0);
+  const totalCompleted = UNDERGROUND_LENGTH_PROGRESS.reduce((s,x)=>s+x.completed,0);
+  const totalBalance = Math.max(0,totalOriginal-totalCompleted);
+  const summaryPct = totalOriginal ? totalCompleted/totalOriginal*100 : 0;
+  host.innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:14px">
+      <div class="kpi kpi-info"><div class="kpi-label">Combined Underground Length</div><div class="kpi-value">${fmt2(totalOriginal)} m</div><div class="kpi-sub">original total</div></div>
+      <div class="kpi kpi-good"><div class="kpi-label">Completed Length</div><div class="kpi-value">${fmt2(totalCompleted)} m</div><div class="kpi-sub">${fmtPct(summaryPct)} complete</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-label">Balance Length</div><div class="kpi-value">${fmt2(totalBalance)} m</div><div class="kpi-sub">remaining underground works</div></div>
+    </div>
+    <div class="tunnel-monitor-grid">${UNDERGROUND_LENGTH_PROGRESS.map(x=>{
+    const pct = x.original ? x.completed/x.original*100 : 0;
+    const balance = Math.max(0, x.original - x.completed);
     return `<div class="tunnel-monitor-card">
-      <div class="tunnel-monitor-title">${escapeHtml(s.name)}</div>
-      <div class="tunnel-monitor-sub">Original length ${fmt2(totalLen||0)} m · Balance ${fmt2(balance)} m</div>
-      <div class="tunnel-rings">
-        <div class="tunnel-ring">${donut(totalLen?excavation/totalLen*100:0)}<div class="tunnel-ring-label">Excavation</div></div>
-        <div class="tunnel-ring">${donut(totalLen?support/totalLen*100:0)}<div class="tunnel-ring-label">Support</div></div>
-        <div class="tunnel-ring">${donut(totalLen?concreting/totalLen*100:0)}<div class="tunnel-ring-label">Concreting</div></div>
-        <div class="tunnel-ring">${donut(totalLen?balance/totalLen*100:0)}<div class="tunnel-ring-label">Balance</div></div>
-      </div>
-      <div style="overflow-x:auto;margin-top:10px">
-        <table style="font-size:11px">
-          <thead><tr><th>Breakdown</th><th class="num">Revised Qty</th><th class="num">IPC Qty</th><th class="num">%</th></tr></thead>
-          <tbody>${catRows.map(x=>`<tr><td>${escapeHtml(x.label)}</td><td class="num">${fmt2(x.planned)}</td><td class="num">${fmt2(x.done)}</td><td class="num">${fmtPct(x.pct)}</td></tr>`).join('')}</tbody>
-        </table>
+      <div class="tunnel-monitor-title">${escapeHtml(x.name)}</div>
+      <div class="tunnel-monitor-sub">Original ${fmt2(x.original)} m · Completed ${fmt2(x.completed)} m · Balance ${fmt2(balance)} m</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        ${donut(pct)}
+        <div style="font-size:12px;color:var(--text-2);line-height:1.8">
+          <div><strong style="color:var(--text-1)">Original:</strong> ${fmt2(x.original)} m</div>
+          <div><strong style="color:var(--good)">Completed:</strong> ${fmt2(x.completed)} m</div>
+          <div><strong style="color:var(--warn)">Balance:</strong> ${fmt2(balance)} m</div>
+          <div><strong style="color:var(--brand)">Progress:</strong> ${fmt2(pct)}%</div>
+        </div>
       </div>
     </div>`;
   }).join('')}</div>`;
+}
+
+function renderPowerhouseProgress(){
+  const host = document.getElementById('powerhouseProgressHost');
+  if(!host) return;
+  const p = POWERHOUSE_LEVEL_PROGRESS;
+  const total = p.start - p.final;
+  const completed = p.start - p.current;
+  const balance = p.current - p.final;
+  const pct = total ? (completed/total)*100 : 0;
+  const fill = Math.max(0, Math.min(100,pct));
+  host.innerHTML = `
+    <div style="display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center">
+      <div>
+        <div class="vertical-progress"><div class="vertical-progress-fill" style="height:${fill}%"></div><div class="vertical-progress-label">${fmt2(pct)}%</div></div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Starting Level</div><div class="kpi-value">${fmt2(p.start)}</div><div class="kpi-sub">masl</div></div>
+        <div class="kpi"><div class="kpi-label">Required Final Level</div><div class="kpi-value">${fmt2(p.final)}</div><div class="kpi-sub">masl</div></div>
+        <div class="kpi kpi-info"><div class="kpi-label">Current Level</div><div class="kpi-value">${fmt2(p.current)}</div><div class="kpi-sub">masl</div></div>
+        <div class="kpi"><div class="kpi-label">Total Excavation Depth</div><div class="kpi-value">${fmt2(total)}</div><div class="kpi-sub">m</div></div>
+        <div class="kpi kpi-good"><div class="kpi-label">Completed Depth</div><div class="kpi-value">${fmt2(completed)}</div><div class="kpi-sub">m</div></div>
+        <div class="kpi kpi-warn"><div class="kpi-label">Balance Depth</div><div class="kpi-value">${fmt2(balance)}</div><div class="kpi-sub">m</div></div>
+      </div>
+    </div>`;
+}
+
+function breakdownRowsForFilters(){
+  const rows = boqFlatRows();
+  const ipcNo = state.breakdownIpcNo || '';
+  const map = cumulativeIpcMap(true, ipcNo);
+  return rows.map(r=>{
+    const prog = findIpcProgressForBoqRow(r, map);
+    const ipcQty = Number(prog.qty)||0;
+    const ipcAmount = Number(prog.amount)||0;
+    const balanceQty = Math.max(0, r.revisedQty - ipcQty);
+    const balanceAmount = Math.max(0, r.revisedAmount - ipcAmount);
+    return {...r, ipcQty, ipcAmount, balanceQty, balanceAmount,
+      physicalPct:r.revisedQty ? ipcQty/r.revisedQty*100 : 0,
+      financialPct:r.revisedAmount ? ipcAmount/r.revisedAmount*100 : 0};
+  }).filter(r=>
+    (!state.breakdownSection || r.sectionName===state.breakdownSection) &&
+    (!state.breakdownLocation || r.location===state.breakdownLocation) &&
+    (!state.breakdownType || r.type===state.breakdownType) &&
+    (!state.breakdownCategory || r.breakdownCategory===state.breakdownCategory)
+  );
+}
+
+function setBreakdownFilter(key, val){
+  state[key] = val || '';
+  save();
+  renderBreakdownProgress();
+}
+
+function renderBreakdownProgress(){
+  const host = document.getElementById('breakdownProgressHost');
+  if(!host) return;
+  const all = boqFlatRows();
+  const sections = [...new Set(all.map(r=>r.sectionName))].sort();
+  const locations = [...new Set(all.map(r=>r.location).filter(Boolean))].sort();
+  const ipcs = (state.ipcs||[]).slice().sort((a,b)=>ipcSortNo(a)-ipcSortNo(b));
+  const rows = breakdownRowsForFilters();
+  const totals = rows.reduce((a,r)=>{
+    ['originalQty','addedQty','revisedQty','ipcQty','balanceQty','originalAmount','revisedAmount','ipcAmount','balanceAmount'].forEach(k=>a[k]=(a[k]||0)+(Number(r[k])||0));
+    return a;
+  }, {});
+  const opt = (arr, selected) => arr.map(x=>`<option value="${escapeHtml(x)}" ${selected===x?'selected':''}>${escapeHtml(x)}</option>`).join('');
+  host.innerHTML = `
+    <div class="progress-filter-bar">
+      <select onchange="setBreakdownFilter('breakdownSection',this.value)"><option value="">All Sections</option>${opt(sections,state.breakdownSection||'')}</select>
+      <select onchange="setBreakdownFilter('breakdownLocation',this.value)"><option value="">All Locations</option>${opt(locations,state.breakdownLocation||'')}</select>
+      <select onchange="setBreakdownFilter('breakdownType',this.value)"><option value="">Surface + Underground</option>${opt(['Surface','Underground'],state.breakdownType||'')}</select>
+      <select onchange="setBreakdownFilter('breakdownCategory',this.value)"><option value="">All Work Categories</option>${opt(BREAKDOWN_CATEGORIES,state.breakdownCategory||'')}</select>
+      <select onchange="setBreakdownFilter('breakdownIpcNo',this.value)"><option value="">Cumulative IPC</option>${opt(ipcs.map(i=>i.no),state.breakdownIpcNo||'')}</select>
+    </div>
+    <div class="kpi-grid" style="margin-bottom:12px">
+      <div class="kpi"><div class="kpi-label">Original BOQ Qty</div><div class="kpi-value">${fmt2(totals.originalQty||0)}</div><div class="kpi-sub">${rows.length} rows</div></div>
+      <div class="kpi kpi-info"><div class="kpi-label">Revised BOQ Qty</div><div class="kpi-value">${fmt2(totals.revisedQty||0)}</div><div class="kpi-sub">incl. added quantity</div></div>
+      <div class="kpi kpi-good"><div class="kpi-label">IPC Quantity</div><div class="kpi-value">${fmt2(totals.ipcQty||0)}</div><div class="kpi-sub">${state.breakdownIpcNo||'cumulative'}</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-label">Balance Amount</div><div class="kpi-value">${fmtCr(totals.balanceAmount||0)}</div><div class="kpi-sub">${ccy()}</div></div>
+    </div>
+    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
+      <table style="font-size:11px">
+        <thead><tr><th>Type</th><th>Section</th><th>Location</th><th>Work Category</th><th>Item No.</th><th>Description</th><th class="num">Original Qty</th><th class="num">Added Qty</th><th class="num">Revised Qty</th><th class="num">IPC Qty</th><th class="num">Balance Qty</th><th class="num">BOQ Amount</th><th class="num">Revised Amount</th><th class="num">IPC Amount</th><th class="num">Balance Amount</th><th class="num">Physical %</th><th class="num">Financial %</th></tr></thead>
+        <tbody>${rows.slice(0,300).map(r=>`<tr>
+          <td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.sectionName)}</td><td>${escapeHtml(r.location)}</td><td>${escapeHtml(r.breakdownCategory)}</td><td>${escapeHtml(displayItemNo(r.item))}</td><td>${escapeHtml(r.item.activity||'')}</td>
+          <td class="num">${fmt2(r.originalQty)}</td><td class="num">${fmt2(Number(r.item.addedQty)||0)}</td><td class="num">${fmt2(r.revisedQty)}</td><td class="num">${fmt2(r.ipcQty)}</td><td class="num">${fmt2(r.balanceQty)}</td>
+          <td class="num">${money2(r.originalAmount)}</td><td class="num">${money2(r.revisedAmount)}</td><td class="num">${money2(r.ipcAmount)}</td><td class="num">${money2(r.balanceAmount)}</td><td class="num">${fmt2(r.physicalPct)}%</td><td class="num">${fmt2(r.financialPct)}%</td>
+        </tr>`).join('') || `<tr><td colspan="17" style="text-align:center;color:var(--text-3);padding:24px">No rows match the selected filters.</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderDashboardIpcWiseProgress(){
+  const host = document.getElementById('dashboardIpcWiseHost');
+  if(!host) return;
+  const ipcs = (state.ipcs||[]).slice().sort((a,b)=>ipcSortNo(a)-ipcSortNo(b));
+  if(!ipcs.length){
+    host.innerHTML = `<div class="empty"><i class="bi bi-receipt"></i><div class="empty-title">No IPC data</div><div class="empty-sub">Import or create IPCs to show non-cumulative progress.</div></div>`;
+    return;
+  }
+  host.innerHTML = `<div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
+    <table style="font-size:11px">
+      <thead><tr><th>IPC No.</th><th>IPC Date</th><th class="num">Line Items</th><th class="num">This IPC Quantity</th><th class="num">This IPC Amount Excl. VAT</th><th class="num">Certified Incl. VAT</th><th>Status</th></tr></thead>
+      <tbody>${ipcs.map(ipc=>{
+        const qty = (ipc.lineItems||[]).reduce((s,x)=>s+(Number(x.qty)||0),0);
+        const amount = (ipc.lineItems||[]).reduce((s,x)=>s+(Number(x.amount)||0),0) || Number(ipc.gross)||0;
+        const c = calcIPC(ipc);
+        return `<tr>
+          <td><strong>${escapeHtml(ipc.no||'')}</strong></td>
+          <td>${escapeHtml(ipc.submittedDate || ipc.approvedDate || ipc.paidDate || ipc.periodTo || ipc.periodFrom || '')}</td>
+          <td class="num">${(ipc.lineItems||[]).length}</td>
+          <td class="num">${fmt2(qty)}</td>
+          <td class="num">${money2(amount)}</td>
+          <td class="num">${money2(c.totalWithVAT)}</td>
+          <td><span class="pill pill-${isFinalIpcStatus(ipc.status)?'good':'warn'}">${escapeHtml(ipc.status||'draft')}</span></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>`;
 }
 
 /* ---- Render Dashboard ---- */
@@ -8893,6 +9133,9 @@ function renderDashboard(){
 
   renderSectionProgressDashboard();
   renderTunnelProgressMonitoring();
+  renderPowerhouseProgress();
+  renderBreakdownProgress();
+  renderDashboardIpcWiseProgress();
 
   // Hidden legacy charts retained for export/print compatibility.
   // S-curve (cumulative %)
