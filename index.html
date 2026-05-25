@@ -1561,7 +1561,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         </div>
         <div class="setup-switch-card" data-setup-section="progress" onclick="showSetupSection('progress')">
           <div class="setup-switch-icon"><i class="bi bi-graph-up-arrow"></i></div>
-          <div><div class="setup-switch-title">IPC / Progress Setup</div><div class="setup-switch-sub">opening quantities and progress controls</div></div>
+          <div><div class="setup-switch-title">IPC Wise Progress</div><div class="setup-switch-sub">IPC-wise verified quantities and amounts</div></div>
         </div>
       </div>
 
@@ -2179,6 +2179,14 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         <div class="card-body" id="dashboardIpcWiseHost"></div>
       </div>
 
+      <div class="card" style="margin-bottom:18px" id="dailyMajorProgressCard">
+        <div class="card-head">
+          <h3><i class="bi bi-calendar2-check" style="margin-right:6px;color:var(--brand)"></i> Daily Major Activity Progress</h3>
+          <span style="font-size:11px;color:var(--text-3)">average daily progress and estimated time to complete</span>
+        </div>
+        <div class="card-body" id="dailyMajorProgressHost"></div>
+      </div>
+
       <div class="g2" style="margin-bottom:18px" id="lengthChartsRow">
         <div class="card">
           <div class="card-head"><h3><i class="bi bi-graph-up" style="margin-right:6px;color:var(--brand)"></i> Length Advance Over Time</h3>
@@ -2630,6 +2638,7 @@ const DEFAULT = {
   weather:[],     // daily weather logs
   infrastructure:[], // daily infra logs: {id,date,by,notes,facilities:{key:{status,hoursAvail,metricValue,detail}}}
   infraFacilities:null, // [{key,label,icon,metricLabel}] — null means use defaults
+  undergroundLengthProgress:null,
   username:'',
   role:'guest',
   heroCardOffset:{x:0,y:0},
@@ -2654,6 +2663,7 @@ let state = (()=>{
       data.weather = data.weather || [];
       data.infrastructure = data.infrastructure || [];
       data.infraFacilities = data.infraFacilities || null;
+      data.undergroundLengthProgress = data.undergroundLengthProgress || null;
       data.username = data.username || '';
       data.role = data.role || 'guest';
       data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
@@ -3089,18 +3099,36 @@ const WORK_CATEGORIES = [
 ];
 const BREAKDOWN_CATEGORIES = ['Excavation','Support Works','Concreting','Reinforcement Bar / Rebar','Formwork','Other Works'];
 const BOQ_HEADINGS = [
-  'General Items','Weir','Intake','Gravel Trap / Desander','Headrace Tunnel','Surge Shaft',
-  'Penstock','Powerhouse','Tailrace','Road Works','Hydro-Mechanical Works','Electro-Mechanical Works','Other Works'
+  'General Items','Weir','Intake','Gravel Trap','Desander','Approach Canal','Headrace Tunnel / HRT',
+  'Adit-1','Adit-2','Adit-3','Vertical Shaft','Horizontal Shaft','Bifurcation','Surge Shaft',
+  'Penstock','Powerhouse','Tailrace','Road Works','Transmission Line','Camp Area','Other Works'
 ];
 const UNDERGROUND_LENGTH_PROGRESS = [
-  {name:'Headrace Tunnel / HRT', aliases:['headrace','hrt'], original:3740.00, completed:9.73},
+  {name:'Headrace Tunnel / HRT', aliases:['headrace','hrt'], original:3740.925, completed:9.73, startDate:'2024-08-15'},
   {name:'Vertical Shaft', aliases:['vertical shaft'], original:187.00, completed:118.00},
   {name:'Adit-1', aliases:['adit-1','adit 1'], original:200.00, completed:0.00},
+  {name:'Adit-2', aliases:['adit-2','adit 2'], original:0.00, completed:0.00, editable:true},
   {name:'Adit-3', aliases:['adit-3','adit 3'], original:167.00, completed:167.00},
   {name:'Horizontal Shaft', aliases:['horizontal shaft','horizontal tunnel'], original:167.00, completed:157.00},
   {name:'Bifurcation', aliases:['bifurcation'], original:30.00, completed:0.00}
 ];
 const POWERHOUSE_LEVEL_PROGRESS = {start:2092.00, final:2022.00, current:2042.00};
+function undergroundProgressRows(){
+  if(!state.undergroundLengthProgress){
+    state.undergroundLengthProgress = JSON.parse(JSON.stringify(UNDERGROUND_LENGTH_PROGRESS));
+  }
+  UNDERGROUND_LENGTH_PROGRESS.forEach((d,idx)=>{
+    state.undergroundLengthProgress[idx] = {...d, ...(state.undergroundLengthProgress[idx]||{})};
+  });
+  return state.undergroundLengthProgress;
+}
+function updateUndergroundProgress(idx, key, value){
+  const rows = undergroundProgressRows();
+  if(!rows[idx]) return;
+  rows[idx][key] = key==='startDate' ? value : (Number(value)||0);
+  save();
+  renderTunnelProgressMonitoring();
+}
 function cleanItemNo(no){
   const raw = String(no ?? '').trim();
   if(!raw) return '';
@@ -3132,13 +3160,17 @@ function normalizeBoqItem(i){
   if(i.itemNo !== undefined) i.itemNo = cleanItemNo(i.itemNo);
   if(i.originalQty === undefined) i.originalQty = Number(i.plannedQty)||0;
   if(i.addedQty === undefined) i.addedQty = isVoItem(i) ? (Number(i.plannedQty)||0) : 0;
-  if(i.revisedQty === undefined) i.revisedQty = Number(i.plannedQty)||((Number(i.originalQty)||0)+(Number(i.addedQty)||0));
+  if(i.deductedQty === undefined) i.deductedQty = 0;
+  if(i.revisedQty === undefined) i.revisedQty = Number(i.plannedQty)||((Number(i.originalQty)||0)+(Number(i.addedQty)||0)-(Number(i.deductedQty)||0));
   i.plannedQty = Number(i.revisedQty)||0;
   i.rate = Number(i.rate)||0;
   i.boqAmount = (Number(i.originalQty)||0) * i.rate;
   i.revisedAmount = (Number(i.revisedQty)||0) * i.rate;
+  i.vatAmount = costVat(i.revisedAmount);
+  i.amountInclVat = costInclVat(i.revisedAmount);
   i.variationQty = (Number(i.revisedQty)||0) - (Number(i.originalQty)||0);
   i.variationAmount = i.variationQty * i.rate;
+  i.variationPct = i.boqAmount ? (i.variationAmount / i.boqAmount) * 100 : 0;
   i.workCategory = i.workCategory || inferWorkCategory(i.activity);
   i.location = i.location || '';
   i.remarks = i.remarks || '';
@@ -3670,16 +3702,16 @@ function deleteItem(sid, iid){
 function updateItemField(sid, iid, key, value){
   const s = state.structures.find(s=>s.id===sid); if(!s) return;
   const i = s.items.find(i=>i.id===iid); if(!i) return;
-  if(['plannedQty','rate','originalQty','addedQty','revisedQty'].includes(key)) value = Number(value)||0;
+  if(['plannedQty','rate','originalQty','addedQty','deductedQty','revisedQty'].includes(key)) value = Number(value)||0;
   i[key] = value;
-  if(key==='originalQty' || key==='addedQty'){
-    i.revisedQty = (Number(i.originalQty)||0) + (Number(i.addedQty)||0);
+  if(key==='originalQty' || key==='addedQty' || key==='deductedQty'){
+    i.revisedQty = (Number(i.originalQty)||0) + (Number(i.addedQty)||0) - (Number(i.deductedQty)||0);
     i.plannedQty = i.revisedQty;
   }
   if(key==='plannedQty'){
     i.revisedQty = value;
   }
-  if(['plannedQty','rate','originalQty','addedQty','revisedQty'].includes(key)){
+  if(['plannedQty','rate','originalQty','addedQty','deductedQty','revisedQty'].includes(key)){
     normalizeBoqItem(i);
   }
   syncProjectCostsFromItems();
@@ -3737,15 +3769,23 @@ function boqHeadingForSection(name){
   if(/general/.test(n)) return 'General Items';
   if(/weir|stilling|diversion|river training/.test(n)) return 'Weir';
   if(/intake/.test(n)) return 'Intake';
-  if(/gravel|desander|settling/.test(n)) return 'Gravel Trap / Desander';
-  if(/headrace|hrt|adit|tunnel/.test(n)) return 'Headrace Tunnel';
+  if(/gravel/.test(n)) return 'Gravel Trap';
+  if(/desander|settling/.test(n)) return 'Desander';
+  if(/approach canal/.test(n)) return 'Approach Canal';
+  if(/adit[- ]?1/.test(n)) return 'Adit-1';
+  if(/adit[- ]?2/.test(n)) return 'Adit-2';
+  if(/adit[- ]?3/.test(n)) return 'Adit-3';
+  if(/vertical shaft/.test(n)) return 'Vertical Shaft';
+  if(/horizontal shaft|horizontal tunnel/.test(n)) return 'Horizontal Shaft';
+  if(/bifurcation/.test(n)) return 'Bifurcation';
+  if(/headrace|hrt|tunnel/.test(n)) return 'Headrace Tunnel / HRT';
   if(/surge|shaft/.test(n)) return 'Surge Shaft';
   if(/penstock|pressure pipe/.test(n)) return 'Penstock';
   if(/powerhouse|power house|switchyard/.test(n)) return 'Powerhouse';
   if(/tailrace/.test(n)) return 'Tailrace';
   if(/road|access/.test(n)) return 'Road Works';
-  if(/hydro.?mechanical|gate|hoist/.test(n)) return 'Hydro-Mechanical Works';
-  if(/electro.?mechanical|transmission|switchyard|turbine|generator/.test(n)) return 'Electro-Mechanical Works';
+  if(/transmission/.test(n)) return 'Transmission Line';
+  if(/camp/.test(n)) return 'Camp Area';
   return 'Other Works';
 }
 
@@ -3779,12 +3819,13 @@ function renderBoqItemsTable(s, items){
   }
   return `<table class="items-table">
     <thead><tr>
-      <th style="width:90px">Item No.</th><th style="min-width:260px">Description of Work</th><th style="width:70px">Unit</th>
-      <th class="num" style="width:110px">Original Qty</th><th class="num" style="width:110px">Rate Excl. VAT</th>
-      <th class="num" style="width:130px">Original Amount</th><th class="num" style="width:110px">Added Qty</th>
-      <th class="num" style="width:110px">Revised Qty</th><th class="num" style="width:130px">Revised Amount</th>
-      <th class="num" style="width:110px">Variation Qty</th><th class="num" style="width:130px">Variation Amount</th>
-      <th style="width:150px">Work Category</th><th style="width:150px">Location / Chainage</th><th style="width:150px">Remarks</th>
+      <th style="width:120px">BOQ Section</th><th style="width:120px">BOQ Heading</th><th style="width:130px">Location</th><th style="width:110px">Surface / Underground</th>
+      <th style="width:90px">Item No.</th><th style="width:110px">Original Imported No.</th><th style="width:90px">Clean No.</th><th style="min-width:260px">Description of Work</th><th style="width:70px">Unit</th>
+      <th class="num" style="width:110px">Original Qty</th><th class="num" style="width:110px">Added Qty</th><th class="num" style="width:110px">Deducted Qty</th>
+      <th class="num" style="width:110px">Revised Qty</th><th class="num" style="width:110px">Rate Excl. VAT</th>
+      <th class="num" style="width:130px">Amount Excl. VAT</th><th class="num" style="width:120px">VAT Amount</th><th class="num" style="width:130px">Amount Incl. VAT</th>
+      <th class="num" style="width:110px">Variation Qty</th><th class="num" style="width:130px">Variation Amount</th><th class="num" style="width:110px">Variation %</th>
+      <th style="width:150px">Work Category</th><th style="width:150px">Remarks</th>
       <th class="num" style="width:150px">IPC to Date</th>
       <th style="width:32px" title="Track on Dashboard"><i class="bi bi-graph-up-arrow" style="color:var(--brand)"></i></th>
       <th class="actions-cell"></th>
@@ -3797,19 +3838,27 @@ function renderBoqItemsTable(s, items){
         ? `<button class="btn btn-xs ${tracked?'btn-primary':'btn-ghost'}" onclick="toggleItemLengthTracking('${s.id}','${i.id}')" title="${tracked?'Tracked on dashboard - click to untrack':'Track this item on the dashboard'}"><i class="bi bi-${tracked?'check2-square':'plus-square'}"></i></button>`
         : `<span style="color:var(--text-3);font-size:11px;opacity:.5" title="Length tracking only available for items with unit m or rm">-</span>`;
       return `<tr>
+        <td>${escapeHtml(s.name)}</td>
+        <td>${escapeHtml(boqHeadingForSection(s.name))}</td>
+        <td><input type="text" value="${escapeHtml(i.location||s.name)}" onchange="updateItemField('${s.id}','${i.id}','location',this.value)" placeholder="Location"></td>
+        <td>${escapeHtml(sectionType(s.name))}</td>
         <td><input type="text" value="${escapeHtml(displayItemNo(i))}" onchange="updateItemField('${s.id}','${i.id}','itemNo',this.value)" placeholder="No."></td>
+        <td class="mono">${escapeHtml(i.originalItemNo||'')}</td>
+        <td class="mono">${escapeHtml(displayItemNo(i))}</td>
         <td><input type="text" value="${escapeHtml(i.activity)}" onchange="updateItemField('${s.id}','${i.id}','activity',this.value)"></td>
         <td><input type="text" value="${escapeHtml(i.unit)}" onchange="updateItemField('${s.id}','${i.id}','unit',this.value)" style="text-align:center"></td>
         <td><input type="number" class="num-input" step="0.01" value="${i.originalQty}" onchange="updateItemField('${s.id}','${i.id}','originalQty',this.value)"></td>
-        <td><input type="number" class="num-input" step="0.01" value="${i.rate}" onchange="updateItemField('${s.id}','${i.id}','rate',this.value)"></td>
-        <td class="num mono">${money2(itemOriginalAmount(i))}</td>
         <td><input type="number" class="num-input" step="0.01" value="${i.addedQty}" onchange="updateItemField('${s.id}','${i.id}','addedQty',this.value)"></td>
+        <td><input type="number" class="num-input" step="0.01" value="${i.deductedQty}" onchange="updateItemField('${s.id}','${i.id}','deductedQty',this.value)"></td>
         <td><input type="number" class="num-input" step="0.01" value="${i.revisedQty}" onchange="updateItemField('${s.id}','${i.id}','revisedQty',this.value)"></td>
+        <td><input type="number" class="num-input" step="0.01" value="${i.rate}" onchange="updateItemField('${s.id}','${i.id}','rate',this.value)"></td>
         <td class="num mono" data-amt="${i.id}">${money2(itemAmount(i))}</td>
+        <td class="num mono">${money2(i.vatAmount)}</td>
+        <td class="num mono">${money2(i.amountInclVat)}</td>
         <td class="num mono">${fmt2(i.variationQty)}</td>
         <td class="num mono">${money2(i.variationAmount)}</td>
+        <td class="num mono">${fmt2(i.variationPct)}%</td>
         <td><select onchange="updateItemField('${s.id}','${i.id}','workCategory',this.value)">${WORK_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}" ${i.workCategory===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></td>
-        <td><input type="text" value="${escapeHtml(i.location||s.name)}" onchange="updateItemField('${s.id}','${i.id}','location',this.value)" placeholder="Chainage / location"></td>
         <td><input type="text" value="${escapeHtml(i.remarks||'')}" onchange="updateItemField('${s.id}','${i.id}','remarks',this.value)" placeholder="Remarks"></td>
         <td class="num mono" title="${escapeHtml(formatIpcHistoryTitle(i))}">
           <div>${fmt2(Number(i.startingQty)||0)} ${escapeHtml(i.unit||'')}</div>
@@ -8739,9 +8788,12 @@ function boqFlatRows(){
   return rows;
 }
 
-function cumulativeIpcMap(finalOnly=true, ipcNo=''){
+function cumulativeIpcMap(finalOnly=true, ipcNo='', dateFrom='', dateTo=''){
   const map = new Map();
-  (state.ipcs||[]).filter(i=>(!finalOnly || isFinalIpcStatus(i.status)) && (!ipcNo || i.no===ipcNo)).forEach(ipc=>{
+  (state.ipcs||[]).filter(i=>{
+    const d = i.submittedDate || i.approvedDate || i.paidDate || i.periodTo || i.periodFrom || '';
+    return (!finalOnly || isFinalIpcStatus(i.status)) && (!ipcNo || i.no===ipcNo) && (!dateFrom || !d || d>=dateFrom) && (!dateTo || !d || d<=dateTo);
+  }).forEach(ipc=>{
     (ipc.lineItems||[]).forEach(line=>{
       const key = ipcLineKey(line);
       const cur = map.get(key) || {qty:0, amount:0};
@@ -8894,8 +8946,9 @@ function renderTunnelProgressMonitoring(){
       <div class="lp-donut-pct">${p.toFixed(0)}%</div>
     </div>`;
   };
-  const totalOriginal = UNDERGROUND_LENGTH_PROGRESS.reduce((s,x)=>s+x.original,0);
-  const totalCompleted = UNDERGROUND_LENGTH_PROGRESS.reduce((s,x)=>s+x.completed,0);
+  const undergroundRows = undergroundProgressRows();
+  const totalOriginal = undergroundRows.reduce((s,x)=>s+(Number(x.original)||0),0);
+  const totalCompleted = undergroundRows.reduce((s,x)=>s+(Number(x.completed)||0),0);
   const totalBalance = Math.max(0,totalOriginal-totalCompleted);
   const summaryPct = totalOriginal ? totalCompleted/totalOriginal*100 : 0;
   host.innerHTML = `
@@ -8904,19 +8957,35 @@ function renderTunnelProgressMonitoring(){
       <div class="kpi kpi-good"><div class="kpi-label">Completed Length</div><div class="kpi-value">${fmt2(totalCompleted)} m</div><div class="kpi-sub">${fmtPct(summaryPct)} complete</div></div>
       <div class="kpi kpi-warn"><div class="kpi-label">Balance Length</div><div class="kpi-value">${fmt2(totalBalance)} m</div><div class="kpi-sub">remaining underground works</div></div>
     </div>
-    <div class="tunnel-monitor-grid">${UNDERGROUND_LENGTH_PROGRESS.map(x=>{
-    const pct = x.original ? x.completed/x.original*100 : 0;
-    const balance = Math.max(0, x.original - x.completed);
+    <div class="tunnel-monitor-grid">${undergroundRows.map((x,idx)=>{
+    const original = Number(x.original)||0;
+    const completed = Number(x.completed)||0;
+    const pct = original ? completed/original*100 : 0;
+    const balance = Math.max(0, original - completed);
+    const start = parseDateOnly(x.startDate || state.project.startDate || '2024-08-15');
+    const daysWorked = start ? Math.max(1, daysBetween(start, todayDateOnly())) : 0;
+    const avgDaily = daysWorked ? completed / daysWorked : 0;
+    const estDays = avgDaily ? Math.ceil(balance / avgDaily) : 0;
+    const estDate = estDays ? new Date(todayDateOnly().getTime() + estDays*86400000) : null;
+    const editable = x.editable ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0">
+        <input type="number" class="num-input" step="0.01" value="${original}" onchange="updateUndergroundProgress(${idx},'original',this.value)" title="Original length">
+        <input type="number" class="num-input" step="0.01" value="${completed}" onchange="updateUndergroundProgress(${idx},'completed',this.value)" title="Completed length">
+      </div>` : '';
     return `<div class="tunnel-monitor-card">
       <div class="tunnel-monitor-title">${escapeHtml(x.name)}</div>
-      <div class="tunnel-monitor-sub">Original ${fmt2(x.original)} m · Completed ${fmt2(x.completed)} m · Balance ${fmt2(balance)} m</div>
+      <div class="tunnel-monitor-sub">Original ${fmt2(original)} m · Completed ${fmt2(completed)} m · Balance ${fmt2(balance)} m</div>
+      ${editable}
       <div style="display:flex;align-items:center;gap:12px">
         ${donut(pct)}
         <div style="font-size:12px;color:var(--text-2);line-height:1.8">
-          <div><strong style="color:var(--text-1)">Original:</strong> ${fmt2(x.original)} m</div>
-          <div><strong style="color:var(--good)">Completed:</strong> ${fmt2(x.completed)} m</div>
+          <div><strong style="color:var(--text-1)">Original:</strong> ${fmt2(original)} m</div>
+          <div><strong style="color:var(--good)">Completed:</strong> ${fmt2(completed)} m</div>
           <div><strong style="color:var(--warn)">Balance:</strong> ${fmt2(balance)} m</div>
           <div><strong style="color:var(--brand)">Progress:</strong> ${fmt2(pct)}%</div>
+          <div><strong>Start:</strong> ${fmtDateLong(start)}</div>
+          <div><strong>Avg/day:</strong> ${fmt2(avgDaily)} m/day</div>
+          <div><strong>ETC:</strong> ${estDays ? `${estDays} days (${fmtDateLong(estDate)})` : 'set progress'}</div>
         </div>
       </div>
     </div>`;
@@ -8951,7 +9020,7 @@ function renderPowerhouseProgress(){
 function breakdownRowsForFilters(){
   const rows = boqFlatRows();
   const ipcNo = state.breakdownIpcNo || '';
-  const map = cumulativeIpcMap(true, ipcNo);
+  const map = cumulativeIpcMap(true, ipcNo, state.breakdownDateFrom||'', state.breakdownDateTo||'');
   return rows.map(r=>{
     const prog = findIpcProgressForBoqRow(r, map);
     const ipcQty = Number(prog.qty)||0;
@@ -8995,6 +9064,8 @@ function renderBreakdownProgress(){
       <select onchange="setBreakdownFilter('breakdownType',this.value)"><option value="">Surface + Underground</option>${opt(['Surface','Underground'],state.breakdownType||'')}</select>
       <select onchange="setBreakdownFilter('breakdownCategory',this.value)"><option value="">All Work Categories</option>${opt(BREAKDOWN_CATEGORIES,state.breakdownCategory||'')}</select>
       <select onchange="setBreakdownFilter('breakdownIpcNo',this.value)"><option value="">Cumulative IPC</option>${opt(ipcs.map(i=>i.no),state.breakdownIpcNo||'')}</select>
+      <input type="date" value="${escapeHtml(state.breakdownDateFrom||'')}" onchange="setBreakdownFilter('breakdownDateFrom',this.value)" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-1);padding:6px 10px;border-radius:7px;font-size:12px">
+      <input type="date" value="${escapeHtml(state.breakdownDateTo||'')}" onchange="setBreakdownFilter('breakdownDateTo',this.value)" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-1);padding:6px 10px;border-radius:7px;font-size:12px">
     </div>
     <div class="kpi-grid" style="margin-bottom:12px">
       <div class="kpi"><div class="kpi-label">Original BOQ Qty</div><div class="kpi-value">${fmt2(totals.originalQty||0)}</div><div class="kpi-sub">${rows.length} rows</div></div>
@@ -9002,6 +9073,8 @@ function renderBreakdownProgress(){
       <div class="kpi kpi-good"><div class="kpi-label">IPC Quantity</div><div class="kpi-value">${fmt2(totals.ipcQty||0)}</div><div class="kpi-sub">${state.breakdownIpcNo||'cumulative'}</div></div>
       <div class="kpi kpi-warn"><div class="kpi-label">Balance Amount</div><div class="kpi-value">${fmtCr(totals.balanceAmount||0)}</div><div class="kpi-sub">${ccy()}</div></div>
     </div>
+    ${renderVariationSummaryTable(rows)}
+    ${renderLocationSummaryTable(rows)}
     <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
       <table style="font-size:11px">
         <thead><tr><th>Type</th><th>Section</th><th>Location</th><th>Work Category</th><th>Item No.</th><th>Description</th><th class="num">Original Qty</th><th class="num">Added Qty</th><th class="num">Revised Qty</th><th class="num">IPC Qty</th><th class="num">Balance Qty</th><th class="num">BOQ Amount</th><th class="num">Revised Amount</th><th class="num">IPC Amount</th><th class="num">Balance Amount</th><th class="num">Physical %</th><th class="num">Financial %</th></tr></thead>
@@ -9012,6 +9085,42 @@ function renderBreakdownProgress(){
         </tr>`).join('') || `<tr><td colspan="17" style="text-align:center;color:var(--text-3);padding:24px">No rows match the selected filters.</td></tr>`}</tbody>
       </table>
     </div>`;
+}
+
+function renderVariationSummaryTable(rows){
+  const by = new Map();
+  rows.forEach(r=>{
+    const key = `${r.sectionName}|${r.location}`;
+    const cur = by.get(key) || {section:r.sectionName, location:r.location, original:0, revised:0, variation:0};
+    cur.original += Number(r.originalAmount)||0;
+    cur.revised += Number(r.revisedAmount)||0;
+    cur.variation += Number(r.variationAmount)||0;
+    by.set(key, cur);
+  });
+  const out = [...by.values()].filter(x=>Math.abs(x.variation)>0.005).sort((a,b)=>Math.abs(b.variation)-Math.abs(a.variation)).slice(0,20);
+  return `<div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px">
+    <table style="font-size:11px"><thead><tr><th colspan="6">Variation Summary</th></tr><tr><th>Section</th><th>Location</th><th class="num">Original Amount</th><th class="num">Revised Amount</th><th class="num">Variation Amount</th><th class="num">Variation %</th></tr></thead>
+    <tbody>${out.length ? out.map(x=>`<tr><td>${escapeHtml(x.section)}</td><td>${escapeHtml(x.location)}</td><td class="num">${money2(x.original)}</td><td class="num">${money2(x.revised)}</td><td class="num">${money2(x.variation)}</td><td class="num">${fmt2(x.original?x.variation/x.original*100:0)}%</td></tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:14px">No variation in current filter.</td></tr>`}</tbody></table>
+  </div>`;
+}
+
+function renderLocationSummaryTable(rows){
+  const by = new Map();
+  rows.forEach(r=>{
+    const cur = by.get(r.location) || {location:r.location, boq:0, revised:0, ipc:0, balance:0, revQty:0, ipcQty:0};
+    cur.boq += Number(r.originalAmount)||0;
+    cur.revised += Number(r.revisedAmount)||0;
+    cur.ipc += Number(r.ipcAmount)||0;
+    cur.balance += Number(r.balanceAmount)||0;
+    cur.revQty += Number(r.revisedQty)||0;
+    cur.ipcQty += Number(r.ipcQty)||0;
+    by.set(r.location, cur);
+  });
+  const out = [...by.values()].sort((a,b)=>b.revised-a.revised).slice(0,20);
+  return `<div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px">
+    <table style="font-size:11px"><thead><tr><th colspan="7">Location-wise Monitoring Summary</th></tr><tr><th>Location</th><th class="num">BOQ Cost</th><th class="num">Revised BOQ Cost</th><th class="num">IPC Cumulative Amount</th><th class="num">Balance Amount</th><th class="num">Physical %</th><th class="num">Financial %</th></tr></thead>
+    <tbody>${out.length ? out.map(x=>`<tr><td>${escapeHtml(x.location)}</td><td class="num">${money2(x.boq)}</td><td class="num">${money2(x.revised)}</td><td class="num">${money2(x.ipc)}</td><td class="num">${money2(x.balance)}</td><td class="num">${fmt2(x.revQty?x.ipcQty/x.revQty*100:0)}%</td><td class="num">${fmt2(x.revised?x.ipc/x.revised*100:0)}%</td></tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:14px">No location data in current filter.</td></tr>`}</tbody></table>
+  </div>`;
 }
 
 function renderDashboardIpcWiseProgress(){
@@ -9040,6 +9149,53 @@ function renderDashboardIpcWiseProgress(){
         </tr>`;
       }).join('')}</tbody>
     </table>
+  </div>`;
+}
+
+function renderDailyMajorProgress(){
+  const host = document.getElementById('dailyMajorProgressHost');
+  if(!host) return;
+  const today = todayDateOnly();
+  const rows = [];
+  undergroundProgressRows().forEach(x=>{
+    const start = parseDateOnly(x.startDate || state.project.startDate || '2024-08-15');
+    const days = start ? Math.max(1, daysBetween(start, today)) : 1;
+    const total = Number(x.completed)||0;
+    const balance = Math.max(0,(Number(x.original)||0)-total);
+    const avg = total/days;
+    const etc = avg ? Math.ceil(balance/avg) : 0;
+    rows.push({name:x.name, unit:'m', start, total, days, avg, balance, etc, est:etc?new Date(today.getTime()+etc*86400000):null});
+  });
+  rows.push({
+    name:'Powerhouse Excavation Level', unit:'m depth',
+    start:parseDateOnly(state.project.startDate || '2024-08-15'),
+    total:POWERHOUSE_LEVEL_PROGRESS.start-POWERHOUSE_LEVEL_PROGRESS.current,
+    days:Math.max(1, daysBetween(parseDateOnly(state.project.startDate || '2024-08-15'), today)),
+    avg:(POWERHOUSE_LEVEL_PROGRESS.start-POWERHOUSE_LEVEL_PROGRESS.current)/Math.max(1, daysBetween(parseDateOnly(state.project.startDate || '2024-08-15'), today)),
+    balance:POWERHOUSE_LEVEL_PROGRESS.current-POWERHOUSE_LEVEL_PROGRESS.final,
+    etc:0, est:null
+  });
+  const byMajor = new Map();
+  (state.logs||[]).forEach(l=>{
+    const s = state.structures.find(x=>x.id===l.structureId);
+    const item = s ? (s.items||[]).find(i=>i.id===l.itemId) : null;
+    if(!s || !item) return;
+    const cat = breakdownCategory(item.workCategory || item.activity);
+    const key = `${s.name} - ${cat}`;
+    const cur = byMajor.get(key) || {name:key, unit:item.unit||'', start:parseDateOnly(l.date), total:0, daysSet:new Set()};
+    cur.total += Number(l.qty)||0;
+    cur.daysSet.add(l.date);
+    if(l.date && (!cur.start || parseDateOnly(l.date)<cur.start)) cur.start = parseDateOnly(l.date);
+    byMajor.set(key, cur);
+  });
+  [...byMajor.values()].slice(0,20).forEach(x=>{
+    const days = Math.max(1,x.daysSet.size);
+    const avg = x.total/days;
+    rows.push({name:x.name, unit:x.unit, start:x.start, total:x.total, days, avg, balance:0, etc:0, est:null});
+  });
+  host.innerHTML = `<div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
+    <table style="font-size:11px"><thead><tr><th>Major Activity</th><th>Start Date</th><th>Current Date</th><th class="num">Total Progress</th><th class="num">Days Worked</th><th class="num">Average Daily Progress</th><th class="num">Balance</th><th class="num">Estimated Time</th><th>Estimated Completion</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${fmtDateLong(r.start)}</td><td>${fmtDateLong(today)}</td><td class="num">${fmt2(r.total)} ${escapeHtml(r.unit)}</td><td class="num">${r.days}</td><td class="num">${fmt2(r.avg)} ${escapeHtml(r.unit)}/day</td><td class="num">${fmt2(r.balance)} ${escapeHtml(r.unit)}</td><td class="num">${r.etc?`${r.etc} days`:'-'}</td><td>${r.est?fmtDateLong(r.est):'-'}</td></tr>`).join('')}</tbody></table>
   </div>`;
 }
 
@@ -9136,6 +9292,7 @@ function renderDashboard(){
   renderPowerhouseProgress();
   renderBreakdownProgress();
   renderDashboardIpcWiseProgress();
+  renderDailyMajorProgress();
 
   // Hidden legacy charts retained for export/print compatibility.
   // S-curve (cumulative %)
