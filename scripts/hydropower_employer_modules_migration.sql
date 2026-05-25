@@ -147,6 +147,26 @@ create table if not exists penstock_progress_records (
   created_at timestamptz default now()
 );
 
+create table if not exists hmem_progress_records (
+  id text primary key,
+  report_id text references daily_site_report(id),
+  component text,
+  manufacturing_status text,
+  factory_inspection_status text,
+  factory_acceptance_test_status text,
+  shipment_status text,
+  customs_clearance_status text,
+  site_delivery_status text,
+  installation_status text,
+  testing_status text,
+  commissioning_status text,
+  issue_pending text,
+  document_url text,
+  photo_evidence_ref text,
+  remarks text,
+  created_at timestamptz default now()
+);
+
 create table if not exists manpower_logs (
   id text primary key,
   log_date date not null,
@@ -312,4 +332,75 @@ create table if not exists report_generation_logs (
   generated_at timestamptz default now(),
   output_format text,
   output_url text
+);
+
+create table if not exists qaqc_logs (
+  id text primary key,
+  log_date date not null,
+  structure_name text,
+  activity_name text,
+  boq_item_id text,
+  contractor text,
+  inspection_type text,
+  reference_no text,
+  result text,
+  non_conformance text,
+  corrective_action text,
+  responsible_person text,
+  target_close_date date,
+  status text default 'Open',
+  evidence_url text,
+  remarks text,
+  created_at timestamptz default now()
+);
+
+create table if not exists safety_logs (
+  id text primary key,
+  log_date date not null,
+  structure_name text,
+  activity_name text,
+  contractor text,
+  safety_type text,
+  severity text,
+  incident_description text,
+  action_taken text,
+  responsible_person text,
+  target_close_date date,
+  status text default 'Open',
+  evidence_url text,
+  remarks text,
+  created_at timestamptz default now()
+);
+
+create table if not exists drawing_approval_logs (
+  id text primary key,
+  drawing_no text,
+  drawing_title text,
+  structure_name text,
+  activity_name text,
+  submitted_by text,
+  submitted_date date,
+  due_date date,
+  approval_status text default 'Pending',
+  approved_by text,
+  approved_date date,
+  remarks text,
+  created_at timestamptz default now()
+);
+
+create table if not exists rfi_logs (
+  id text primary key,
+  rfi_no text,
+  subject text,
+  structure_name text,
+  activity_name text,
+  raised_by text,
+  raised_date date,
+  due_date date,
+  response_by text,
+  response_date date,
+  status text default 'Pending',
+  impact_on_progress text,
+  remarks text,
+  created_at timestamptz default now()
 );

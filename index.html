@@ -2432,7 +2432,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
           <div class="card-head"><h3>Resources, Materials &amp; Evidence</h3></div>
           <div class="card-body">
             <div class="form-grid">
-              <div class="field"><label>Record Type</label><select id="ecAssetType" onchange="renderEmployerControl()"><option value="manpower">Manpower</option><option value="equipment">Equipment</option><option value="material">Material</option><option value="evidence">Photo / Video Evidence</option></select></div>
+              <div class="field"><label>Record Type</label><select id="ecAssetType" onchange="renderEmployerControl()"><option value="manpower">Manpower</option><option value="equipment">Equipment</option><option value="material">Material</option><option value="evidence">Photo / Video Evidence</option><option value="qaqc">QA/QC</option><option value="safety">Safety</option><option value="drawing">Drawing Approval</option><option value="rfi">RFI</option></select></div>
               <div class="field"><label>Date</label><input type="date" id="ecAssetDate"></div>
               <div class="field"><label>Contractor</label><input type="text" id="ecAssetContractor"></div>
               <div class="field"><label>Structure / Location</label><input type="text" id="ecAssetLocation"></div>
@@ -2440,7 +2440,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
               <div class="field"><label>Quantity / Hours / Count</label><input type="number" id="ecAssetQty" step="0.01"></div>
               <div class="field"><label>Opening / Idle / Received</label><input type="number" id="ecAssetAux1" step="0.01"></div>
               <div class="field"><label>Consumed / Breakdown / Balance</label><input type="number" id="ecAssetAux2" step="0.01"></div>
-              <div class="field" style="grid-column:1/-1"><label>Remarks / Link / GPS / Operator</label><textarea id="ecAssetRemarks" rows="2"></textarea></div>
+              <div class="field" style="grid-column:1/-1"><label>Remarks / Link / GPS / Operator / Digital Signature</label><textarea id="ecAssetRemarks" rows="2" placeholder="For mobile/offline entry, add GPS, voice note link, signature name, QA/QC or safety reference here"></textarea></div>
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
               <button class="btn btn-primary" onclick="saveEmployerAssetRecord()"><i class="bi bi-check2"></i> Save Record</button>
@@ -2492,6 +2492,10 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
               <option value="ipc">IPC Support Report</option>
               <option value="board">Bank / Board Summary</option>
               <option value="photo">Photo Progress Report</option>
+              <option value="qaqc">QA/QC Report</option>
+              <option value="safety">Safety Report</option>
+              <option value="decision">Pending Decision Report</option>
+              <option value="drawing">Drawing / RFI Report</option>
             </select>
             <button class="btn btn-ghost btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
           </div>
@@ -2842,21 +2846,29 @@ let state = (()=>{
 const ROLE_DEFS = {
   guest: {name:'Guest', org:'Not signed in', avatar:'G', perms:new Set()},
   admin: {name:'Administrator', org:'Owner', avatar:'A',
-    perms:new Set(['setup.edit','plan.edit','plan.approve','plan.revise','ipc.create','ipc.approve','log.create','log.delete'])
+    perms:new Set(['setup.edit','plan.edit','plan.approve','plan.revise','ipc.create','ipc.approve','log.create','log.delete','ec.entry','ec.verify','ec.approve','ec.export','ec.admin'])
   },
   director: {name:'Director', org:'Employer', avatar:'D', perms:new Set()},
   manager: {name:'Project Manager', org:'Employer', avatar:'PM',
-    perms:new Set(['plan.approve','ipc.approve','log.create','log.delete'])
+    perms:new Set(['plan.approve','ipc.approve','log.create','log.delete','ec.entry','ec.verify','ec.approve','ec.export'])
   },
   engineer: {name:'Engineer / Contractor', org:'Contractor', avatar:'E',
-    perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise'])
+    perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise','ec.entry'])
   },
   contractor: {name:'Contractor', org:'Contractor', avatar:'C',
-    perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise'])
+    perms:new Set(['setup.edit','plan.edit','log.create','log.delete','ipc.create','plan.revise','ec.entry'])
   },
   employer: {name:'Employer', org:'Employer', avatar:'EM',
-    perms:new Set(['plan.approve','ipc.approve'])
-  }
+    perms:new Set(['plan.approve','ipc.approve','ec.verify','ec.approve','ec.export'])
+  },
+  employerRep: {name:'Employer Representative', org:'Employer', avatar:'ER', perms:new Set(['ec.entry','ec.verify','ec.export'])},
+  consultant: {name:'Consultant / Engineer', org:'Consultant', avatar:'CE', perms:new Set(['plan.approve','ec.verify','ec.export'])},
+  siteEngineer: {name:'Site Engineer', org:'Site', avatar:'SE', perms:new Set(['log.create','ec.entry'])},
+  quantitySurveyor: {name:'Quantity Surveyor', org:'Commercial', avatar:'QS', perms:new Set(['ipc.create','ec.entry','ec.export'])},
+  planningEngineer: {name:'Planning Engineer', org:'Planning', avatar:'PL', perms:new Set(['plan.edit','plan.revise','ec.entry','ec.export'])},
+  qaqcEngineer: {name:'QA/QC Engineer', org:'Quality', avatar:'QC', perms:new Set(['ec.entry','ec.verify','ec.export'])},
+  safetyOfficer: {name:'Safety Officer', org:'HSE', avatar:'SO', perms:new Set(['ec.entry','ec.verify','ec.export'])},
+  boardViewer: {name:'Management / Board / Bank', org:'Viewer', avatar:'BV', perms:new Set(['ec.export'])}
 };
 
 const AUTH_DEFS = {
@@ -2865,7 +2877,15 @@ const AUTH_DEFS = {
   contractor:{password:'contractor', role:'contractor', display:'Contractor'},
   employer:{password:'employer', role:'employer', display:'Employer'},
   director:{password:'director', role:'director', display:'Director'},
-  manager:{password:'manager', role:'manager', display:'Project Manager'}
+  manager:{password:'manager', role:'manager', display:'Project Manager'},
+  employerrep:{password:'employerrep', role:'employerRep', display:'Employer Representative'},
+  consultant:{password:'consultant', role:'consultant', display:'Consultant / Engineer'},
+  site:{password:'site', role:'siteEngineer', display:'Site Engineer'},
+  qs:{password:'qs', role:'quantitySurveyor', display:'Quantity Surveyor'},
+  planner:{password:'planner', role:'planningEngineer', display:'Planning Engineer'},
+  qaqc:{password:'qaqc', role:'qaqcEngineer', display:'QA/QC Engineer'},
+  safety:{password:'safety', role:'safetyOfficer', display:'Safety Officer'},
+  board:{password:'board', role:'boardViewer', display:'Management / Board / Bank'}
 };
 
 function hasPerm(perm){ return (ROLE_DEFS[state.role]||{perms:new Set()}).perms.has(perm); }
@@ -4337,7 +4357,8 @@ const EC_HYDRO_FORMS = {
   tunnel:{label:'Tunnel Progress', detail:'Face, chainage from/to, rock class, excavation type, mucking, ventilation, seepage, support type, rock bolt, shotcrete, steel rib, geology, delay reason, photo evidence'},
   powerhouse:{label:'Powerhouse Progress', detail:'Area, starting level, design level, current excavation level, block/bay/level, shotcrete, rock bolt, drainage, concrete, rebar, formwork, photo evidence'},
   headworks:{label:'Headworks Progress', detail:'Weir, intake, undersluice, gravel trap, desander, cofferdam, river diversion, excavation, concrete, rebar, formwork, flood or monsoon risk'},
-  penstock:{label:'Penstock / Pressure Shaft', detail:'Excavation, anchor block, saddle support, pipe fabrication, delivery, erection, welding, NDT, hydro test, coating, chainage, pipe length installed'}
+  penstock:{label:'Penstock / Pressure Shaft', detail:'Excavation, anchor block, saddle support, pipe fabrication, delivery, erection, welding, NDT, hydro test, coating, chainage, pipe length installed'},
+  hmem:{label:'HM/EM Progress', detail:'Manufacturing status, factory inspection, FAT, shipment, customs clearance, site delivery, installation, testing, commissioning, issue pending, supporting document/photo'}
 };
 const EC_DELAY_TYPES = ['Contractor Delay','Employer Decision Pending','Drawing Pending','Land Issue','Local Obstruction','Weather','Flood / Monsoon','Geological Issue','Material Shortage','Equipment Breakdown','Design Change','Access Road Blockage','Explosive Shortage','Approval Pending','Safety Incident','RFI Pending'];
 
@@ -4350,10 +4371,15 @@ function emptyEmployerControl(){
     powerhouseProgressRecords:[],
     headworksProgressRecords:[],
     penstockProgressRecords:[],
+    hmemProgressRecords:[],
     manpowerLogs:[],
     equipmentLogs:[],
     materialLogs:[],
     photoEvidence:[],
+    qaqcLogs:[],
+    safetyLogs:[],
+    drawingApprovalLogs:[],
+    rfiLogs:[],
     delayLogs:[],
     approvalWorkflowLogs:[],
     revisionHistory:[],
@@ -4507,8 +4533,21 @@ function saveHydroSpecificRecord(){
 function saveEmployerAssetRecord(){
   const ec = ensureEmployerControl();
   const type = document.getElementById('ecAssetType').value;
-  const rec = {id:uid(), date:document.getElementById('ecAssetDate').value, contractor:document.getElementById('ecAssetContractor').value, location:document.getElementById('ecAssetLocation').value, name:document.getElementById('ecAssetName').value, qty:Number(document.getElementById('ecAssetQty').value)||0, aux1:Number(document.getElementById('ecAssetAux1').value)||0, aux2:Number(document.getElementById('ecAssetAux2').value)||0, remarks:document.getElementById('ecAssetRemarks').value, ts:Date.now()};
-  const map = {manpower:'manpowerLogs', equipment:'equipmentLogs', material:'materialLogs', evidence:'photoEvidence'};
+  const rec = {
+    id:uid(), date:document.getElementById('ecAssetDate').value,
+    contractor:document.getElementById('ecAssetContractor').value,
+    location:document.getElementById('ecAssetLocation').value,
+    name:document.getElementById('ecAssetName').value,
+    qty:Number(document.getElementById('ecAssetQty').value)||0,
+    aux1:Number(document.getElementById('ecAssetAux1').value)||0,
+    aux2:Number(document.getElementById('ecAssetAux2').value)||0,
+    remarks:document.getElementById('ecAssetRemarks').value,
+    uploadedBy:state.username || ROLE_DEFS[state.role]?.name || 'User',
+    offlineReady:true,
+    syncStatus:'local',
+    ts:Date.now()
+  };
+  const map = {manpower:'manpowerLogs', equipment:'equipmentLogs', material:'materialLogs', evidence:'photoEvidence', qaqc:'qaqcLogs', safety:'safetyLogs', drawing:'drawingApprovalLogs', rfi:'rfiLogs'};
   if(!rec.date || !rec.name){ toast('Date and name/category are required','bad'); return; }
   ec[map[type]].push(rec);
   save(); renderEmployerControl(); toast('Control-room record saved','good');
@@ -4554,10 +4593,18 @@ function ecBuildAlerts(sum){
   const ec = ensureEmployerControl();
   const alerts = [];
   if(sum.pendingCount) alerts.push({title:'Pending approvals', priority:'High', action:`Verify ${sum.pendingCount} submitted records before official reporting.`});
+  const today = new Date().toISOString().slice(0,10);
+  if(!(ec.dailyProgressRecords||[]).some(r=>r.date===today) && !(state.logs||[]).some(r=>r.date===today)){
+    alerts.push({title:'No daily report submitted', priority:'Medium', action:'Submit or verify today site progress report.'});
+  }
   ec.delayLogs.filter(d=>d.status!=='Resolved' && d.status!=='Closed').slice(-10).forEach(d=>alerts.push({title:d.type, priority:d.affectedDays>3?'High':'Medium', action:d.remarks || d.activity || 'Resolve open delay'}));
   ec.materialLogs.filter(m=>Number(m.aux2)>0 && Number(m.aux2)<Number(m.qty)*0.2).forEach(m=>alerts.push({title:`Low material stock: ${m.name}`, priority:'Medium', action:`Balance ${fmt2(m.aux2)} at ${m.location||'site'}`}));
   ec.equipmentLogs.filter(e=>Number(e.aux2)>0).forEach(e=>alerts.push({title:`Equipment breakdown: ${e.name}`, priority:'Medium', action:`Breakdown ${fmt2(e.aux2)} hours`}));
   ec.ipcProgressMapping.filter(x=>x.status==='Mismatch').forEach(x=>alerts.push({title:'IPC mismatch', priority:'High', action:`Claimed ${fmt2(x.claimedQty)} exceeds verified ${fmt2(x.verifiedQty)}`}));
+  ec.safetyLogs.filter(s=>/incident|accident|unsafe|critical/i.test(s.name + ' ' + s.remarks)).forEach(s=>alerts.push({title:`Safety issue: ${s.name}`, priority:'High', action:s.remarks || 'Review and close safety issue'}));
+  ec.qaqcLogs.filter(q=>/fail|non.?conform|hold|reject/i.test(q.name + ' ' + q.remarks)).forEach(q=>alerts.push({title:`QA/QC issue: ${q.name}`, priority:'High', action:q.remarks || 'Close QA/QC action'}));
+  ec.drawingApprovalLogs.filter(d=>/pending|late|overdue/i.test(d.name + ' ' + d.remarks)).forEach(d=>alerts.push({title:`Drawing approval pending: ${d.name}`, priority:'Medium', action:d.remarks || 'Follow up drawing approval'}));
+  ec.rfiLogs.filter(r=>/pending|late|overdue/i.test(r.name + ' ' + r.remarks)).forEach(r=>alerts.push({title:`RFI pending: ${r.name}`, priority:'Medium', action:r.remarks || 'Respond to RFI'}));
   ec.dashboardAlerts = alerts;
   return alerts;
 }
@@ -4579,6 +4626,8 @@ function renderEmployerReport(){
   const title = document.getElementById('ecReportType')?.selectedOptions?.[0]?.textContent || 'Employer Report';
   const tableRows = rows.slice(0,40).map(r=>{ const f=ecFindItem(r); return `<tr><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(f.s?.name||'')}</td><td>${escapeHtml(f.item?.activity||'')}</td><td class="num">${fmt2(r.todayQty||0)} ${escapeHtml(f.item?.unit||'')}</td><td>${escapeHtml(r.approvalStatus||'')}</td><td>${escapeHtml(r.location||r.chainage||'')}</td></tr>`; }).join('');
   const extra = type==='delay' ? ec.delayLogs.map(d=>`<tr><td>${escapeHtml(d.date||'')}</td><td>${escapeHtml(d.type||'')}</td><td>${escapeHtml(d.responsibleParty||'')}</td><td class="num">${fmt2(d.affectedDays||0)}</td><td>${escapeHtml(d.status||'')}</td><td>${escapeHtml(d.remarks||'')}</td></tr>`).join('') : '';
+  const assetMap = {qaqc:ec.qaqcLogs, safety:ec.safetyLogs, drawing:[...(ec.drawingApprovalLogs||[]), ...(ec.rfiLogs||[])], resource:[...(ec.manpowerLogs||[]), ...(ec.equipmentLogs||[]), ...(ec.materialLogs||[])]};
+  const assetRows = (assetMap[type]||[]).slice(-40).reverse().map(x=>`<tr><td>${escapeHtml(x.date||'')}</td><td>${escapeHtml(x.name||'')}</td><td>${escapeHtml(x.contractor||'')}</td><td>${escapeHtml(x.location||'')}</td><td class="num">${fmt2(x.qty||0)}</td><td>${escapeHtml(x.remarks||'')}</td></tr>`).join('');
   host.innerHTML = `
     <div class="report-box">
       <h2 style="margin:0 0 8px">${escapeHtml(title)}</h2>
@@ -4588,9 +4637,11 @@ function renderEmployerReport(){
         <div class="kpi"><div class="kpi-label">Pending Records</div><div class="kpi-value">${pending.length}</div><div class="kpi-sub">provisional only</div></div>
         <div class="kpi"><div class="kpi-label">Photos / Evidence</div><div class="kpi-value">${ec.photoEvidence.length}</div><div class="kpi-sub">linked records</div></div>
         <div class="kpi"><div class="kpi-label">Open Delays</div><div class="kpi-value">${ec.delayLogs.filter(d=>d.status!=='Resolved' && d.status!=='Closed').length}</div><div class="kpi-sub">decision required</div></div>
+        <div class="kpi"><div class="kpi-label">QA/QC + Safety</div><div class="kpi-value">${(ec.qaqcLogs||[]).length + (ec.safetyLogs||[]).length}</div><div class="kpi-sub">inspection and HSE records</div></div>
       </div>
       <table class="ms-table"><thead><tr><th>Date</th><th>Structure</th><th>Activity / BOQ</th><th class="num">Qty</th><th>Status</th><th>Location</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">No matching progress records.</td></tr>'}</tbody></table>
       ${type==='delay'?`<h3 style="margin-top:18px">Delay / Decision Register</h3><table class="ms-table"><thead><tr><th>Date</th><th>Type</th><th>Party</th><th class="num">Days</th><th>Status</th><th>Action</th></tr></thead><tbody>${extra || '<tr><td colspan="6">No delay records.</td></tr>'}</tbody></table>`:''}
+      ${assetRows?`<h3 style="margin-top:18px">${escapeHtml(title)} Register</h3><table class="ms-table"><thead><tr><th>Date</th><th>Record</th><th>Contractor</th><th>Location</th><th class="num">Qty</th><th>Remarks</th></tr></thead><tbody>${assetRows}</tbody></table>`:''}
     </div>`;
 }
 
@@ -4624,9 +4675,10 @@ function renderDashboardEmployerControl(){
   const ec = ensureEmployerControl();
   const sum = ecSummary();
   const alerts = ecBuildAlerts(sum);
-  const hydroCount = ['tunnelProgressRecords','powerhouseProgressRecords','headworksProgressRecords','penstockProgressRecords']
+  const hydroCount = ['tunnelProgressRecords','powerhouseProgressRecords','headworksProgressRecords','penstockProgressRecords','hmemProgressRecords']
     .reduce((total,k)=>total+(ec[k]||[]).length,0);
   const resourceCount = (ec.manpowerLogs||[]).length + (ec.equipmentLogs||[]).length + (ec.materialLogs||[]).length;
+  const complianceCount = (ec.qaqcLogs||[]).length + (ec.safetyLogs||[]).length + (ec.drawingApprovalLogs||[]).length + (ec.rfiLogs||[]).length;
   const openDelays = (ec.delayLogs||[]).filter(d=>d.status!=='Resolved' && d.status!=='Closed').length;
   const mismatchCount = (ec.ipcProgressMapping||[]).filter(x=>x.status==='Mismatch').length;
   const latest = ecOfficialProgressRecords().slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,5);
@@ -4634,9 +4686,9 @@ function renderDashboardEmployerControl(){
     <div class="kpi-grid" style="margin-bottom:14px">
       <div class="kpi"><div class="kpi-icon"><i class="bi bi-diagram-3"></i></div><div class="kpi-label">WBS Daily Records</div><div class="kpi-value">${ecOfficialProgressRecords().length}</div><div class="kpi-sub">old logs mapped as approved data</div></div>
       <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div><div class="kpi-label">Pending Approvals</div><div class="kpi-value">${sum.pendingCount}</div><div class="kpi-sub">shown separately from official progress</div></div>
-      <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-water"></i></div><div class="kpi-label">Hydropower Forms</div><div class="kpi-value">${hydroCount}</div><div class="kpi-sub">tunnel, powerhouse, headworks, penstock</div></div>
+      <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-water"></i></div><div class="kpi-label">Hydropower Forms</div><div class="kpi-value">${hydroCount}</div><div class="kpi-sub">tunnel, powerhouse, headworks, penstock, HM/EM</div></div>
       <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-people"></i></div><div class="kpi-label">Resources / Materials</div><div class="kpi-value">${resourceCount}</div><div class="kpi-sub">manpower, equipment, stock and consumption</div></div>
-      <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-camera"></i></div><div class="kpi-label">Photo / Video Evidence</div><div class="kpi-value">${(ec.photoEvidence||[]).length}</div><div class="kpi-sub">linked with date, structure and activity</div></div>
+      <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-shield-check"></i></div><div class="kpi-label">QA/QC Safety RFI</div><div class="kpi-value">${complianceCount}</div><div class="kpi-sub">quality, safety, drawing and RFI logs</div></div>
       <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-exclamation-triangle"></i></div><div class="kpi-label">Alerts / Delays / IPC</div><div class="kpi-value">${alerts.length}</div><div class="kpi-sub">${openDelays} open delays · ${mismatchCount} IPC mismatches</div></div>
     </div>
     <div class="g2">
@@ -10849,6 +10901,9 @@ window.addEventListener('hpmsDataUpdated', () => {
         data.infrastructure = data.infrastructure || [];
         data.infraFacilities = data.infraFacilities || null;
         data.employerControl = data.employerControl || null;
+        if(data.employerControl){
+          data.employerControl = Object.assign(emptyEmployerControl(), data.employerControl);
+        }
         data.username = data.username || '';
         data.role = data.role || 'guest';
         data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
