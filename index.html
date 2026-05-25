@@ -117,6 +117,41 @@ main{padding:24px;max-width:1400px;margin:0 auto;width:100%}
 .page-title i{color:var(--brand)}
 .page-sub{font-size:13px;color:var(--text-3);margin-top:4px}
 
+/* Setup module cards */
+.setup-switch{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:18px}
+.setup-switch-card{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:8px;padding:14px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px;min-height:86px
+}
+.setup-switch-card:hover{border-color:var(--brand);transform:translateY(-1px)}
+.setup-switch-card.active{border-color:var(--brand);background:var(--brand-soft)}
+.setup-switch-icon{
+  width:40px;height:40px;border-radius:8px;background:var(--bg-2);display:grid;place-items:center;
+  color:var(--brand);font-size:18px;flex:none
+}
+.setup-switch-title{font-weight:800;color:var(--text-1);font-size:15px}
+.setup-switch-sub{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.setup-section{display:none}
+.setup-section.active{display:block}
+.boq-section-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.boq-section-chip{
+  border:1px solid var(--line);background:var(--bg-2);border-radius:8px;padding:10px 12px;
+  color:var(--text-1);cursor:pointer;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px
+}
+.boq-section-chip:hover,.boq-section-chip.active{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.boq-cost-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:14px}
+.boq-cost-box{background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.boq-cost-label{font-size:10.5px;color:var(--text-3);text-transform:uppercase;font-weight:700;letter-spacing:.05em}
+.boq-cost-value{font-family:'JetBrains Mono';font-weight:800;color:var(--text-1);margin-top:3px}
+.tunnel-monitor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.tunnel-monitor-card{background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:12px}
+.tunnel-monitor-title{font-weight:800;color:var(--text-1);margin-bottom:2px}
+.tunnel-monitor-sub{font-size:11px;color:var(--text-3);margin-bottom:10px}
+.tunnel-rings{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tunnel-ring{text-align:center;min-width:0}
+.tunnel-ring .lp-donut{margin:0 auto 4px}
+.tunnel-ring-label{font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* Buttons */
 .btn{
   display:inline-flex;align-items:center;gap:7px;
@@ -1507,6 +1542,22 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         </div>
       </div>
 
+      <div class="setup-switch">
+        <div class="setup-switch-card active" data-setup-section="project" onclick="showSetupSection('project')">
+          <div class="setup-switch-icon"><i class="bi bi-info-circle"></i></div>
+          <div><div class="setup-switch-title">Project Information</div><div class="setup-switch-sub">contract, parties, dates, VAT and baseline cost</div></div>
+        </div>
+        <div class="setup-switch-card" data-setup-section="boq" onclick="showSetupSection('boq')">
+          <div class="setup-switch-icon"><i class="bi bi-list-columns"></i></div>
+          <div><div class="setup-switch-title">BOQ Setup</div><div class="setup-switch-sub">section-wise items, variation and work categories</div></div>
+        </div>
+        <div class="setup-switch-card" data-setup-section="progress" onclick="showSetupSection('progress')">
+          <div class="setup-switch-icon"><i class="bi bi-graph-up-arrow"></i></div>
+          <div><div class="setup-switch-title">IPC / Progress Setup</div><div class="setup-switch-sub">opening quantities and progress controls</div></div>
+        </div>
+      </div>
+
+      <div class="setup-section active" id="setupProjectInfoSection">
       <div class="card" style="margin-bottom:18px">
         <div class="card-head"><h3>Project Information</h3></div>
         <div class="card-body">
@@ -1519,9 +1570,10 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
             <div class="field"><label>Currency</label><select id="pCcy"><option>NPR</option><option>USD</option><option>INR</option><option>EUR</option><option>JPY</option></select></div>
             <div class="field"><label>Employer</label><input type="text" id="pEmp" placeholder="e.g. Nepal Electricity Authority"></div>
             <div class="field"><label>Contractor</label><input type="text" id="pCon" placeholder="e.g. ABC Constructions"></div>
-            <div class="field"><label>Contract No.</label><input type="text" id="pContractNo" placeholder="e.g. HH-JIJV/MKHPP/2080-81/CW-01"></div>
-            <div class="field"><label>Contract Value</label><input type="number" id="pContractValue" step="0.01" placeholder="Total contract amount (excl. VAT)"></div>
-            <div class="field"><label>Baseline Cost</label><input type="number" id="pBaselineCost" step="0.01" placeholder="Original contract value"></div>
+            <div class="field"><label>Consultant</label><input type="text" id="pConsultant" placeholder="e.g. Owner's Engineer / Consultant"></div>
+            <div class="field"><label>Contract ID</label><input type="text" id="pContractNo" placeholder="e.g. HH-JIJV/MKHPP/2080-81/CW-01"></div>
+            <div class="field"><label>Contract Value (auto from BOQ incl. VAT)</label><input type="number" id="pContractValue" step="0.01" placeholder="Auto linked with BOQ cost" readonly></div>
+            <div class="field"><label>Baseline Cost (BOQ incl. VAT)</label><input type="number" id="pBaselineCost" step="0.01" placeholder="Auto linked with BOQ cost" readonly></div>
             <div class="field"><label>VO Cost</label><input type="number" id="pVoCost" step="0.01" placeholder="Variation order costs"></div>
             <div class="field"><label>Revised Cost</label><input type="number" id="pRevisedCost" step="0.01" placeholder="Total revised contract value"></div>
             <div class="field"><label>VAT (%)</label><input type="number" id="pVatPct" step="0.01" placeholder="13"></div>
@@ -1530,10 +1582,19 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
             <div class="field"><label>Revised Start (optional)</label><input type="date" id="pRevStart"></div>
             <div class="field"><label>Revised End (optional)</label><input type="date" id="pRevEnd"></div>
             <div class="field" style="grid-column:1/-1"><label>Time Extension Reason</label><input type="text" id="pExtReason" placeholder="e.g. Force majeure, design change, monsoon delay"></div>
+            <div class="field" style="grid-column:1/-1">
+              <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text-1)">
+                <input type="checkbox" id="pAllowContractOverride" onchange="toggleContractOverride()" style="width:18px;height:18px;accent-color:var(--brand)">
+                Allow manual Contract Value override (admin permission only)
+              </label>
+            </div>
           </div>
+          <div class="boq-cost-strip" id="projectCostFormulaHost"></div>
         </div>
       </div>
+      </div>
 
+      <div class="setup-section" id="setupProgressSection">
       <div class="card" style="margin-bottom:18px" id="midProjectCard">
         <div class="card-head">
           <h3><i class="bi bi-clock-history" style="margin-right:6px;color:var(--brand)"></i> Progress to Date (Mid-Project Setup)</h3>
@@ -1552,7 +1613,9 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="setup-section" id="setupBoqSection">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <h2 style="font-size:18px">Project Structures</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1562,7 +1625,9 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         </div>
       </div>
 
+      <div id="boqSectionPicker"></div>
       <div id="structHost"></div>
+      </div>
     </section>
 
     <!-- ===== MILESTONES ===== -->
@@ -2019,11 +2084,11 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         <div class="card-body" id="dashboardMilestonesHost"></div>
       </div>
 
-      <!-- Cost Breakdown (linked to daily logs) -->
+      <!-- Cost Breakdown (linked to cumulative IPC) -->
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
           <h3><i class="bi bi-cash" style="margin-right:6px;color:var(--brand)"></i> Contract Cost Breakdown</h3>
-          <span style="font-size:11px;color:var(--text-3)">baseline · variations · billed from daily logs</span>
+          <span style="font-size:11px;color:var(--text-3)">baseline · variations · certified IPC amount</span>
         </div>
         <div class="card-body" id="costBreakdownHost"></div>
       </div>
@@ -2051,6 +2116,14 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
           <span style="font-size:11px;color:var(--text-3)" id="linearSubText">tunnels, roads &amp; linear works</span>
         </div>
         <div class="card-body" id="linearProgressHost"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px" id="tunnelProgressCard">
+        <div class="card-head">
+          <h3><i class="bi bi-circle-half" style="margin-right:6px;color:var(--brand)"></i> Tunnel Progress Monitoring</h3>
+          <span style="font-size:11px;color:var(--text-3)">section-wise length and category progress from cumulative IPC quantities</span>
+        </div>
+        <div class="card-body" id="tunnelProgressHost"></div>
       </div>
 
       <div class="g2" style="margin-bottom:18px" id="lengthChartsRow">
@@ -2485,11 +2558,11 @@ const STORAGE_KEY = 'hpms_data_v2';
 
 const DEFAULT = {
   project:{name:'Mewa Khola Hydropower Project',capacity:'23',capacityUnit:'MW',type:'Run-of-River',location:'Taplejung, Province No. 1, Nepal',
-    employer:'High Himal-Jade Infra JV',contractor:'High Himalaya Hydro Construction Pvt. Ltd. (3HC)',startDate:'2024-08-15',endDate:'2027-07-15',currency:'NPR',
+    employer:'High Himal-Jade Infra JV',contractor:'High Himalaya Hydro Construction Pvt. Ltd. (3HC)',consultant:'',startDate:'2024-08-15',endDate:'2027-07-15',currency:'NPR',
     contractNo:'HH-JIJV/MKHPP/2080-81/CW-01 + UMHL/5T-Ropeway/2025/CW-01', contractValue:1380082100.12,
     baselineCost:1380082100.12, voCost:0, revisedCost:1380082100.12,
     vatPct:13, revStartDate:'2024-08-15', revEndDate:'2028-02-03', extReason:'',
-    midProject:true},
+    midProject:true, autoCostFromBoq:true, allowContractOverride:false},
   structures:[],
   logs:[],
   ipcs:[],
@@ -2531,7 +2604,7 @@ let state = (()=>{
       data.username = data.username || '';
       data.role = data.role || 'guest';
       data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
-      data.project = Object.assign({contractNo:'', contractValue:0, baselineCost:0, voCost:0, revisedCost:0, vatPct:13, revStartDate:'', revEndDate:'', extReason:'', midProject:false}, data.project);
+      data.project = Object.assign({contractNo:'', consultant:'', contractValue:0, baselineCost:0, voCost:0, revisedCost:0, vatPct:13, revStartDate:'', revEndDate:'', extReason:'', midProject:false, autoCostFromBoq:true, allowContractOverride:false}, data.project);
       return data;
     }
   }catch(e){}
@@ -2730,6 +2803,8 @@ const fmtCr = n=>{
   return Math.round(n).toLocaleString();
 };
 const ccy = ()=>state.project.currency || 'NPR';
+const money2 = n => (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const moneyFull = n => `${ccy()} ${money2(n)}`;
 
 /* ---- Activity templates ---- */
 const ACTIVITY_TEMPLATES = {
@@ -2931,23 +3006,76 @@ function loadTemplate(){
 }
 
 /* ---- Computations ---- */
-const itemAmount = i => Number.isFinite(Number(i.boqAmount)) ? Number(i.boqAmount) : ((Number(i.plannedQty)||0) * (Number(i.rate)||0));
+const WORK_CATEGORIES = [
+  'Excavation','Support Works','Concreting','Reinforcement / Rebar','Formwork','Shotcrete',
+  'Rock Bolt','Steel Works','Grouting','Backfilling','Finishing Works','General / Other Works'
+];
+const BOQ_HEADINGS = [
+  'General Items','Weir','Intake','Gravel Trap / Desander','Headrace Tunnel','Surge Shaft',
+  'Penstock','Powerhouse','Tailrace','Road Works','Hydro-Mechanical Works','Electro-Mechanical Works','Other Works'
+];
+function inferWorkCategory(activity){
+  const a = String(activity||'').toLowerCase();
+  if(/rock\s*bolt|rockbolt/.test(a)) return 'Rock Bolt';
+  if(/shotcrete|sfrs/.test(a)) return 'Shotcrete';
+  if(/lattice|steel rib|wire ?mesh|forepol|support/.test(a)) return 'Support Works';
+  if(/excavat|cutting|muck|spoil|hard rock|soft rock|drill|blast|breaker|advance|chainage/.test(a)) return 'Excavation';
+  if(/concrete|rcc|pcc|m10|m15|m20|m25|m30|m35|m40|plum|lining|infill|invert/.test(a)) return 'Concreting';
+  if(/rebar|reinforcement|tmt|bar reinforcement|tor steel/.test(a)) return 'Reinforcement / Rebar';
+  if(/formwork|shuttering|centering/.test(a)) return 'Formwork';
+  if(/steel|rib|is[mh]b|gate|pipe|penstock/.test(a)) return 'Steel Works';
+  if(/grout/.test(a)) return 'Grouting';
+  if(/backfill|filling/.test(a)) return 'Backfilling';
+  if(/finish|plaster|paint|tile|floor|door|window/.test(a)) return 'Finishing Works';
+  return 'General / Other Works';
+}
+function normalizeBoqItem(i){
+  if(!i) return i;
+  if(i.originalQty === undefined) i.originalQty = Number(i.plannedQty)||0;
+  if(i.addedQty === undefined) i.addedQty = isVoItem(i) ? (Number(i.plannedQty)||0) : 0;
+  if(i.revisedQty === undefined) i.revisedQty = Number(i.plannedQty)||((Number(i.originalQty)||0)+(Number(i.addedQty)||0));
+  i.plannedQty = Number(i.revisedQty)||0;
+  i.rate = Number(i.rate)||0;
+  i.boqAmount = (Number(i.originalQty)||0) * i.rate;
+  i.revisedAmount = (Number(i.revisedQty)||0) * i.rate;
+  i.variationQty = (Number(i.revisedQty)||0) - (Number(i.originalQty)||0);
+  i.variationAmount = i.variationQty * i.rate;
+  i.workCategory = i.workCategory || inferWorkCategory(i.activity);
+  i.location = i.location || '';
+  i.remarks = i.remarks || '';
+  return i;
+}
+function normalizeAllBoqItems(){
+  (state.structures||[]).forEach(s => (s.items||[]).forEach(normalizeBoqItem));
+}
+const itemOriginalAmount = i => { normalizeBoqItem(i); return Number(i.boqAmount)||0; };
+const itemAmount = i => { normalizeBoqItem(i); return Number(i.revisedAmount)||0; };
 const isVoItem = i => /^\s*(\[?VO\]?|variation)/i.test(String(i.activity||''));
 function syncProjectCostsFromItems(){
   if(!state.project?.autoCostFromBoq) return;
+  normalizeAllBoqItems();
   let base = 0, vo = 0;
   (state.structures||[]).forEach(s => (s.items||[]).forEach(i => {
-    if(isVoItem(i)) vo += itemAmount(i);
-    else base += itemAmount(i);
+    base += itemOriginalAmount(i);
+    vo += Number(i.variationAmount)||0;
   }));
-  state.project.baselineCost = base;
-  state.project.voCost = vo;
-  state.project.revisedCost = base + vo;
-  state.project.contractValue = costInclVat(base + vo);
+  const revisedExVat = base + vo;
+  const revisedInclVat = costInclVat(revisedExVat);
+  state.project.baselineCost = revisedInclVat;
+  state.project.voCost = costInclVat(vo);
+  state.project.revisedCost = revisedInclVat;
+  if(!state.project.allowContractOverride || state.role !== 'admin'){
+    state.project.contractValue = revisedInclVat;
+  }
 }
 const projectVatPct = () => Number(state.project?.vatPct ?? 13) || 0;
 const costInclVat = amount => (Number(amount)||0) * (1 + projectVatPct()/100);
 const costVat = amount => (Number(amount)||0) * projectVatPct()/100;
+const projectAmountExVat = () => {
+  normalizeAllBoqItems();
+  return state.structures.filter(s=>s.parentId===null).reduce((sum,s)=>sum+structAmount(s), 0);
+};
+const projectCostInclVat = () => costInclVat(projectAmountExVat());
 const itemActualQty = (sid,iid) => {
   const s = state.structures.find(x=>x.id===sid);
   const i = s ? (s.items||[]).find(x=>x.id===iid) : null;
@@ -2956,8 +3084,9 @@ const itemActualQty = (sid,iid) => {
     .reduce((s,l)=>s+(Number(l.qty)||0), 0);
 };
 const itemPct = (sid,i) => {
-  if(!i.plannedQty) return 0;
-  return Math.min(100, (itemActualQty(sid,i.id) / i.plannedQty) * 100);
+  normalizeBoqItem(i);
+  if(!i.revisedQty) return 0;
+  return Math.min(100, (itemActualQty(sid,i.id) / i.revisedQty) * 100);
 };
 const itemEarned = (sid,i) => itemActualQty(sid, i.id) * (Number(i.rate)||0);
 const childrenOf = sid => state.structures.filter(s=>s.parentId===sid);
@@ -3035,6 +3164,7 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
 
 /* ---- Project info bindings ---- */
 function renderProject(){
+  syncProjectCostsFromItems();
   document.getElementById('pName').value = state.project.name || '';
   document.getElementById('pCap').value = state.project.capacity || '';
   document.getElementById('pCapUnit').value = state.project.capacityUnit || 'MW';
@@ -3043,42 +3173,49 @@ function renderProject(){
   document.getElementById('pCcy').value = state.project.currency || 'NPR';
   document.getElementById('pEmp').value = state.project.employer || '';
   document.getElementById('pCon').value = state.project.contractor || '';
+  document.getElementById('pConsultant').value = state.project.consultant || '';
   document.getElementById('pStart').value = state.project.startDate || '';
   document.getElementById('pEnd').value = state.project.endDate || '';
   document.getElementById('pContractNo').value = state.project.contractNo || '';
-  document.getElementById('pContractValue').value = state.project.contractValue || '';
-  document.getElementById('pBaselineCost').value = state.project.baselineCost || '';
-  document.getElementById('pVoCost').value = state.project.voCost || '';
-  document.getElementById('pRevisedCost').value = state.project.revisedCost || '';
+  document.getElementById('pContractValue').value = state.project.contractValue ? Number(state.project.contractValue).toFixed(2) : '';
+  document.getElementById('pBaselineCost').value = state.project.baselineCost ? Number(state.project.baselineCost).toFixed(2) : '';
+  document.getElementById('pVoCost').value = state.project.voCost ? Number(state.project.voCost).toFixed(2) : '';
+  document.getElementById('pRevisedCost').value = state.project.revisedCost ? Number(state.project.revisedCost).toFixed(2) : '';
   document.getElementById('pVatPct').value = state.project.vatPct ?? 13;
   document.getElementById('pRevStart').value = state.project.revStartDate || '';
   document.getElementById('pRevEnd').value = state.project.revEndDate || '';
   document.getElementById('pExtReason').value = state.project.extReason || '';
   document.getElementById('pMidProject').checked = !!state.project.midProject;
+  document.getElementById('pAllowContractOverride').checked = !!state.project.allowContractOverride;
+  const canOverride = !!state.project.allowContractOverride && state.role === 'admin';
+  document.getElementById('pContractValue').readOnly = !canOverride;
+  document.getElementById('pBaselineCost').readOnly = true;
 
   const nm = state.project.name || 'Untitled Project';
   const meta = state.project.capacity ? `${state.project.capacity} ${state.project.capacityUnit||''} · ${state.project.type||''}` : 'Configure in Setup';
   document.getElementById('projName').textContent = nm;
   document.getElementById('projMeta').textContent = meta;
+  renderProjectCostFormula();
+  showSetupSection(state.setupSection || 'project');
   toggleMidProject();
 }
-['pName','pCap','pCapUnit','pType','pLoc','pCcy','pEmp','pCon','pStart','pEnd',
+['pName','pCap','pCapUnit','pType','pLoc','pCcy','pEmp','pCon','pConsultant','pStart','pEnd',
  'pContractNo','pContractValue','pBaselineCost','pVoCost','pRevisedCost','pVatPct','pRevStart','pRevEnd','pExtReason'].forEach(id=>{
   document.getElementById(id).addEventListener('input', e=>{
     const map = {pName:'name',pCap:'capacity',pCapUnit:'capacityUnit',pType:'type',pLoc:'location',
-      pCcy:'currency',pEmp:'employer',pCon:'contractor',pStart:'startDate',pEnd:'endDate',
+      pCcy:'currency',pEmp:'employer',pCon:'contractor',pConsultant:'consultant',pStart:'startDate',pEnd:'endDate',
       pContractNo:'contractNo', pContractValue:'contractValue', pBaselineCost:'baselineCost', pVoCost:'voCost', pRevisedCost:'revisedCost', pVatPct:'vatPct',
       pRevStart:'revStartDate', pRevEnd:'revEndDate', pExtReason:'extReason'};
     const v = e.target.value;
     state.project[map[id]] = (['pContractValue','pBaselineCost','pVoCost','pRevisedCost','pVatPct'].includes(id)) ? (Number(v)||0) : v;
-    if(['pBaselineCost','pVoCost'].includes(id)){
-      state.project.revisedCost = (state.project.baselineCost || 0) + (state.project.voCost || 0);
-      document.getElementById('pRevisedCost').value = state.project.revisedCost;
+    if(id==='pVatPct' || (id==='pContractValue' && !state.project.allowContractOverride)){
+      syncProjectCostsFromItems();
+      document.getElementById('pContractValue').value = state.project.contractValue ? Number(state.project.contractValue).toFixed(2) : '';
+      document.getElementById('pBaselineCost').value = state.project.baselineCost ? Number(state.project.baselineCost).toFixed(2) : '';
+      document.getElementById('pRevisedCost').value = state.project.revisedCost ? Number(state.project.revisedCost).toFixed(2) : '';
+      document.getElementById('pVoCost').value = state.project.voCost ? Number(state.project.voCost).toFixed(2) : '';
     }
-    if(id==='pVatPct' && state.project.autoCostFromBoq){
-      state.project.contractValue = costInclVat(state.project.revisedCost || 0);
-      document.getElementById('pContractValue').value = state.project.contractValue;
-    }
+    renderProjectCostFormula();
     save();
     if(id==='pName' || id==='pCap' || id==='pCapUnit' || id==='pType'){
       const nm = state.project.name || 'Untitled Project';
@@ -3092,6 +3229,39 @@ function renderProject(){
     }
   });
 });
+
+function toggleContractOverride(){
+  state.project.allowContractOverride = !!document.getElementById('pAllowContractOverride').checked && state.role === 'admin';
+  if(!state.project.allowContractOverride) syncProjectCostsFromItems();
+  save();
+  renderProject();
+}
+
+function renderProjectCostFormula(){
+  const host = document.getElementById('projectCostFormulaHost');
+  if(!host) return;
+  normalizeAllBoqItems();
+  const exVat = projectAmountExVat();
+  const vat = costVat(exVat);
+  const incl = exVat + vat;
+  const variationExVat = (state.structures||[]).reduce((sum,s)=>sum+(s.items||[]).reduce((a,i)=>a+(Number(normalizeBoqItem(i).variationAmount)||0),0),0);
+  host.innerHTML = `
+    <div class="boq-cost-box"><div class="boq-cost-label">BOQ Amount Excl. VAT</div><div class="boq-cost-value">${moneyFull(exVat)}</div></div>
+    <div class="boq-cost-box"><div class="boq-cost-label">VAT Amount (${fmt2(projectVatPct())}%)</div><div class="boq-cost-value">${moneyFull(vat)}</div></div>
+    <div class="boq-cost-box"><div class="boq-cost-label">BOQ Cost Incl. VAT / Baseline</div><div class="boq-cost-value">${moneyFull(incl)}</div></div>
+    <div class="boq-cost-box"><div class="boq-cost-label">Variation Excl. VAT</div><div class="boq-cost-value">${moneyFull(variationExVat)}</div></div>`;
+}
+
+function showSetupSection(section){
+  state.setupSection = section || 'project';
+  document.querySelectorAll('.setup-section').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.setup-switch-card').forEach(el=>el.classList.toggle('active', el.dataset.setupSection===state.setupSection));
+  const map = {project:'setupProjectInfoSection', boq:'setupBoqSection', progress:'setupProgressSection'};
+  document.getElementById(map[state.setupSection] || map.project)?.classList.add('active');
+  if(state.setupSection==='boq') renderSetup();
+  if(state.setupSection==='progress') renderMidProject();
+  try{ save(); }catch(e){}
+}
 
 function toggleMidProject(){
   const checked = document.getElementById('pMidProject').checked;
@@ -3305,10 +3475,17 @@ function deleteItem(sid, iid){
 function updateItemField(sid, iid, key, value){
   const s = state.structures.find(s=>s.id===sid); if(!s) return;
   const i = s.items.find(i=>i.id===iid); if(!i) return;
-  if(key==='plannedQty' || key==='rate') value = Number(value)||0;
+  if(['plannedQty','rate','originalQty','addedQty','revisedQty'].includes(key)) value = Number(value)||0;
   i[key] = value;
-  if(key==='plannedQty' || key==='rate'){
-    i.boqAmount = (Number(i.plannedQty)||0) * (Number(i.rate)||0);
+  if(key==='originalQty' || key==='addedQty'){
+    i.revisedQty = (Number(i.originalQty)||0) + (Number(i.addedQty)||0);
+    i.plannedQty = i.revisedQty;
+  }
+  if(key==='plannedQty'){
+    i.revisedQty = value;
+  }
+  if(['plannedQty','rate','originalQty','addedQty','revisedQty'].includes(key)){
+    normalizeBoqItem(i);
   }
   syncProjectCostsFromItems();
   // If a chainage m-unit item's plannedQty changed, sync s.length to the new total
@@ -3324,10 +3501,11 @@ function updateItemField(sid, iid, key, value){
   save();
   // Update visible amount cell without full re-render
   const amtCell = document.querySelector(`[data-amt="${iid}"]`);
-  if(amtCell) amtCell.textContent = fmt(itemAmount(i));
+  if(amtCell) amtCell.textContent = money2(itemAmount(i));
   // Refresh structure meta line
   refreshStructMeta(sid);
   updateTotalSummary();
+  renderProjectCostFormula();
   // Live-refresh dashboard if it's open (debounced)
   scheduleDashboardRefresh();
 }
@@ -3359,10 +3537,103 @@ function formatIpcHistoryTitle(item){
   return rows.length ? rows.join('\n') : 'No IPC quantity recorded up to IPC 11';
 }
 
+function boqHeadingForSection(name){
+  const n = String(name||'').toLowerCase();
+  if(/general/.test(n)) return 'General Items';
+  if(/weir|stilling|diversion|river training/.test(n)) return 'Weir';
+  if(/intake/.test(n)) return 'Intake';
+  if(/gravel|desander|settling/.test(n)) return 'Gravel Trap / Desander';
+  if(/headrace|hrt|adit|tunnel/.test(n)) return 'Headrace Tunnel';
+  if(/surge|shaft/.test(n)) return 'Surge Shaft';
+  if(/penstock|pressure pipe/.test(n)) return 'Penstock';
+  if(/powerhouse|power house|switchyard/.test(n)) return 'Powerhouse';
+  if(/tailrace/.test(n)) return 'Tailrace';
+  if(/road|access/.test(n)) return 'Road Works';
+  if(/hydro.?mechanical|gate|hoist/.test(n)) return 'Hydro-Mechanical Works';
+  if(/electro.?mechanical|transmission|switchyard|turbine|generator/.test(n)) return 'Electro-Mechanical Works';
+  return 'Other Works';
+}
+
+function setBoqHeadingFilter(name){
+  state.setupBoqHeading = name || '';
+  save();
+  renderSetup();
+}
+
+function renderBoqSectionPicker(){
+  const host = document.getElementById('boqSectionPicker');
+  if(!host) return;
+  const sectionCounts = {};
+  getDashboardSections().forEach(s=>{
+    const h = boqHeadingForSection(s.name);
+    sectionCounts[h] = (sectionCounts[h]||0) + 1;
+  });
+  const active = state.setupBoqHeading || '';
+  host.innerHTML = `
+    <div class="boq-section-grid">
+      <button class="boq-section-chip ${!active?'active':''}" onclick="setBoqHeadingFilter('')">All BOQ Sections <span>${getDashboardSections().length}</span></button>
+      ${BOQ_HEADINGS.map(h=>`<button class="boq-section-chip ${active===h?'active':''}" onclick="setBoqHeadingFilter('${escapeHtml(h)}')">${escapeHtml(h)} <span>${sectionCounts[h]||0}</span></button>`).join('')}
+    </div>`;
+}
+
+function renderBoqItemsTable(s, items){
+  if(!items.length){
+    return `<div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px;border:1px dashed var(--line);border-radius:8px">
+      No activities yet. ${s.category==='group'?'This is a grouping structure - add sub-structures below.':'Add activities to start tracking.'}
+    </div>`;
+  }
+  return `<table class="items-table">
+    <thead><tr>
+      <th style="width:90px">Item No.</th><th style="min-width:260px">Description of Work</th><th style="width:70px">Unit</th>
+      <th class="num" style="width:110px">Original Qty</th><th class="num" style="width:110px">Rate Excl. VAT</th>
+      <th class="num" style="width:130px">Original Amount</th><th class="num" style="width:110px">Added Qty</th>
+      <th class="num" style="width:110px">Revised Qty</th><th class="num" style="width:130px">Revised Amount</th>
+      <th class="num" style="width:110px">Variation Qty</th><th class="num" style="width:130px">Variation Amount</th>
+      <th style="width:150px">Work Category</th><th style="width:150px">Location / Chainage</th><th style="width:150px">Remarks</th>
+      <th class="num" style="width:150px">IPC to Date</th>
+      <th style="width:32px" title="Track on Dashboard"><i class="bi bi-graph-up-arrow" style="color:var(--brand)"></i></th>
+      <th class="actions-cell"></th>
+    </tr></thead>
+    <tbody>${items.map(i=>{
+      normalizeBoqItem(i);
+      const isLinear = ['m','rm','RM','Rm'].includes(String(i.unit||'').trim());
+      const tracked = (state.selectedLengthItems||[]).includes(`${s.id}:${i.id}`);
+      const trackBtn = isLinear
+        ? `<button class="btn btn-xs ${tracked?'btn-primary':'btn-ghost'}" onclick="toggleItemLengthTracking('${s.id}','${i.id}')" title="${tracked?'Tracked on dashboard - click to untrack':'Track this item on the dashboard'}"><i class="bi bi-${tracked?'check2-square':'plus-square'}"></i></button>`
+        : `<span style="color:var(--text-3);font-size:11px;opacity:.5" title="Length tracking only available for items with unit m or rm">-</span>`;
+      return `<tr>
+        <td><input type="text" value="${escapeHtml(i.itemNo||'')}" onchange="updateItemField('${s.id}','${i.id}','itemNo',this.value)" placeholder="No."></td>
+        <td><input type="text" value="${escapeHtml(i.activity)}" onchange="updateItemField('${s.id}','${i.id}','activity',this.value)"></td>
+        <td><input type="text" value="${escapeHtml(i.unit)}" onchange="updateItemField('${s.id}','${i.id}','unit',this.value)" style="text-align:center"></td>
+        <td><input type="number" class="num-input" step="0.01" value="${i.originalQty}" onchange="updateItemField('${s.id}','${i.id}','originalQty',this.value)"></td>
+        <td><input type="number" class="num-input" step="0.01" value="${i.rate}" onchange="updateItemField('${s.id}','${i.id}','rate',this.value)"></td>
+        <td class="num mono">${money2(itemOriginalAmount(i))}</td>
+        <td><input type="number" class="num-input" step="0.01" value="${i.addedQty}" onchange="updateItemField('${s.id}','${i.id}','addedQty',this.value)"></td>
+        <td><input type="number" class="num-input" step="0.01" value="${i.revisedQty}" onchange="updateItemField('${s.id}','${i.id}','revisedQty',this.value)"></td>
+        <td class="num mono" data-amt="${i.id}">${money2(itemAmount(i))}</td>
+        <td class="num mono">${fmt2(i.variationQty)}</td>
+        <td class="num mono">${money2(i.variationAmount)}</td>
+        <td><select onchange="updateItemField('${s.id}','${i.id}','workCategory',this.value)">${WORK_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}" ${i.workCategory===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></td>
+        <td><input type="text" value="${escapeHtml(i.location||s.name)}" onchange="updateItemField('${s.id}','${i.id}','location',this.value)" placeholder="Chainage / location"></td>
+        <td><input type="text" value="${escapeHtml(i.remarks||'')}" onchange="updateItemField('${s.id}','${i.id}','remarks',this.value)" placeholder="Remarks"></td>
+        <td class="num mono" title="${escapeHtml(formatIpcHistoryTitle(i))}">
+          <div>${fmt2(Number(i.startingQty)||0)} ${escapeHtml(i.unit||'')}</div>
+          <div style="font-size:10.5px;color:var(--text-3)">${fmtCr(Number(i.openingAmount)||((Number(i.startingQty)||0)*(Number(i.rate)||0)))}</div>
+        </td>
+        <td style="text-align:center">${trackBtn}</td>
+        <td class="actions-cell"><button class="btn btn-bad btn-xs" onclick="deleteItem('${s.id}','${i.id}')"><i class="bi bi-trash"></i></button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
 /* ---- Render Setup ---- */
 function renderSetup(){
   const host = document.getElementById('structHost');
   if(!host) return;
+  normalizeAllBoqItems();
+  renderBoqSectionPicker();
+  renderProjectCostFormula();
   if(!state.structures.length){
     host.innerHTML = `
       <div class="empty">
@@ -3382,7 +3653,7 @@ function renderSetup(){
   const renderOne = (s, depth=0) => {
     const items = s.items || [];
     const tplOptions = (ACTIVITY_TEMPLATES[s.category]||[]).map(t=>`<option value="${t.activity}|${t.unit}|${t.rate}">${t.activity} (${t.unit})</option>`).join('');
-    const itemsHtml = items.length ? `
+    let itemsHtml = items.length ? `
       <table class="items-table">
         <thead><tr>
           <th>Activity</th><th style="width:80px">Unit</th>
@@ -3420,7 +3691,8 @@ function renderSetup(){
         No activities yet. ${s.category==='group'?'This is a grouping structure — add sub-structures below.':'Add activities to start tracking.'}
       </div>`;
 
-    const childList = childrenOf(s.id);
+    itemsHtml = renderBoqItemsTable(s, items);
+    const childList = s._filteredChildren ? childrenOf(s.id).filter(c=>s._filteredChildren.includes(c.id)) : childrenOf(s.id);
     const childHtml = childList.map(c=>renderOne(c, depth+1)).join('');
 
     return `
@@ -3455,7 +3727,13 @@ function renderSetup(){
       </div>`;
   };
 
-  const top = state.structures.filter(s=>s.parentId===null);
+  const activeHeading = state.setupBoqHeading || '';
+  const top = state.structures.filter(s=>s.parentId===null).map(s=>{
+    if(!activeHeading) return s;
+    if(boqHeadingForSection(s.name) === activeHeading) return s;
+    const childMatches = childrenOf(s.id).filter(c=>boqHeadingForSection(c.name)===activeHeading).map(c=>c.id);
+    return childMatches.length ? {...s, _filteredChildren:childMatches} : null;
+  }).filter(Boolean);
   host.innerHTML = top.map(s=>renderOne(s,0)).join('');
   updateTotalSummary();
   if(state.project.midProject) renderMidProject();
@@ -4287,6 +4565,36 @@ function updateIPCLineItem(ipcId, idx, key, val){
   renderIPCKpis();
 }
 
+function ipcSortNo(ipc){
+  return parseInt(String(ipc?.no||'').replace(/\D/g,''))||0;
+}
+
+function ipcLineKey(line){
+  return [
+    String(line.boqSection || line.structure || '').toLowerCase().trim(),
+    String(line.itemNo || '').toLowerCase().trim(),
+    String(line.description || line.activity || '').toLowerCase().replace(/^\s*[\d.]+\s*-\s*/,'').trim()
+  ].join('|');
+}
+
+function cumulativeForLineBefore(ipc, line){
+  const targetNo = ipcSortNo(ipc);
+  const key = ipcLineKey(line);
+  return (state.ipcs||[]).filter(x=>ipcSortNo(x) < targetNo).reduce((acc,x)=>{
+    (x.lineItems||[]).forEach(l=>{
+      if(ipcLineKey(l)===key){
+        acc.qty += Number(l.qty)||0;
+        acc.amount += Number(l.amount)||0;
+      }
+    });
+    return acc;
+  }, {qty:0, amount:0});
+}
+
+function cumulativeIpcCertifiedAmount(){
+  return (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status)).reduce((sum,i)=>sum+calcIPC(i).totalWithVAT,0);
+}
+
 function ipsAllLineItemsForIpc(no){
   const data = window.IPS_ALL_DATA;
   if(!data || !(data.items||[]).length) return [];
@@ -4297,8 +4605,13 @@ function ipsAllLineItemsForIpc(no){
     if(!qty && !amount) return null;
     return {
       structure: src.section || 'BOQ',
+      boqSection: src.section || 'BOQ',
+      itemNo: src.itemNo || '',
+      description: src.description || 'BOQ item',
       activity: `${src.itemNo ? src.itemNo + ' - ' : ''}${src.description||'BOQ item'}`,
       unit: normaliseIpsUnit(src.unit, src.description),
+      workCategory: inferWorkCategory(src.description),
+      location: src.section || '',
       qty,
       amount,
       excelRow: src.row
@@ -4596,14 +4909,24 @@ function renderIPC(){
         <div class="mono" style="font-size:11px;color:var(--text-3)">This IPC only: ${fmt2(lineTotals.qty)} qty · ${fmtCr(lineTotals.amount)}</div>
       </div>
       <div style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px">
-        <table style="font-size:11px"><thead><tr><th>Location</th><th>Activity</th><th class="num">This IPC Qty</th><th>Unit</th><th class="num">This IPC Amount</th></tr></thead>
-        <tbody>${(ipc.lineItems||[]).slice(0,120).map((x,idx)=>`<tr>
+        <table style="font-size:11px"><thead><tr><th>BOQ Section</th><th>Item No.</th><th>Description</th><th>Unit</th><th class="num">Previous Cum. Qty</th><th class="num">Current IPC Qty</th><th class="num">Current Cum. Qty</th><th class="num">IPC Amount</th><th class="num">Certified Amount</th><th>Remarks</th></tr></thead>
+        <tbody>${(ipc.lineItems||[]).slice(0,120).map((x,idx)=>{
+          const prev = cumulativeForLineBefore(ipc, x);
+          const curQty = Number(x.qty)||0;
+          const curAmt = Number(x.amount)||0;
+          return `<tr>
           <td>${escapeHtml(x.structure||'')}</td>
-          <td>${escapeHtml(x.activity||'')}</td>
-          <td class="num">${locked?fmt2(x.qty||0):`<input type="number" class="num-input" step="0.01" value="${Number(x.qty)||0}" onchange="updateIPCLineItem('${ipc.id}',${idx},'qty',this.value)" style="width:90px">`}</td>
+          <td>${escapeHtml(x.itemNo||'')}</td>
+          <td>${escapeHtml(x.description||x.activity||'')}</td>
           <td>${escapeHtml(x.unit||'')}</td>
-          <td class="num">${locked?fmtCr(x.amount||0):`<input type="number" class="num-input" step="0.01" value="${Number(x.amount)||0}" onchange="updateIPCLineItem('${ipc.id}',${idx},'amount',this.value)" style="width:120px">`}</td>
-        </tr>`).join('')}</tbody></table>
+          <td class="num">${fmt2(prev.qty)}</td>
+          <td class="num">${locked?fmt2(curQty):`<input type="number" class="num-input" step="0.01" value="${curQty}" onchange="updateIPCLineItem('${ipc.id}',${idx},'qty',this.value)" style="width:90px">`}</td>
+          <td class="num">${fmt2(prev.qty + curQty)}</td>
+          <td class="num">${locked?money2(curAmt):`<input type="number" class="num-input" step="0.01" value="${curAmt}" onchange="updateIPCLineItem('${ipc.id}',${idx},'amount',this.value)" style="width:120px">`}</td>
+          <td class="num">${money2(curAmt)}</td>
+          <td>${escapeHtml(x.remarks||'')}</td>
+        </tr>`;
+        }).join('')}</tbody></table>
       </div>
       ${(ipc.lineItems||[]).length>120?`<div style="font-size:11px;color:var(--text-3);margin-top:6px">Showing first 120 of ${ipc.lineItems.length} linked lines.</div>`:''}
     </td></tr>` : '';
@@ -7329,11 +7652,21 @@ function loadIPSAllDataTemplate(force=false){
     const activity = `${src.itemNo ? src.itemNo + ' - ' : ''}${src.description||'BOQ item'}`;
     s.items.push({
       id:uid(),
-      activity,
+      itemNo: src.itemNo || '',
+      activity: src.description || activity,
       unit:normaliseIpsUnit(src.unit, src.description),
+      originalQty:qty,
+      addedQty:0,
+      revisedQty:qty,
       plannedQty:qty,
       rate,
       boqAmount:amount,
+      revisedAmount:amount,
+      variationQty:0,
+      variationAmount:0,
+      workCategory:inferWorkCategory(src.description),
+      location:s.name,
+      remarks:'',
       startingQty:Number(src.openingQty)||0,
       openingAmount:Number(src.openingAmount)||0,
       excelRow:src.row,
@@ -7859,9 +8192,9 @@ function heroDragEnd(){
 function renderHero(){
   const host = document.getElementById('heroCard');
   if(!host) return;
-  const overall = overallPct();
-  const totalAmt = projectAmount();
-  const earnedAmt = projectEarned();
+  const totalAmt = projectAmountExVat();
+  const earnedAmt = (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status)).reduce((s,i)=>s+calcIPC(i).net,0);
+  const overall = totalAmt ? (earnedAmt/totalAmt)*100 : 0;
   const struct = state.structures.filter(s=>s.parentId===null).length;
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
   const totalLogs = state.logs.length;
@@ -8106,19 +8439,32 @@ function renderDashboardMilestones(){
 
 const BOQ_PROGRESS_CATEGORIES = {
   excavation: 'Excavation',
-  protection: 'Protection',
+  support: 'Support Works',
   concreting: 'Concreting',
   rebar: 'Rebar',
   formwork: 'Formwork',
+  shotcrete: 'Shotcrete',
+  rockbolt: 'Rock Bolt',
+  steel: 'Steel Works',
+  grouting: 'Grouting',
+  backfilling: 'Backfilling',
   other: 'Other'
 };
 
 function classifyBoqCategory(activity){
+  const label = inferWorkCategory(activity);
+  if(label==='Excavation') return 'excavation';
+  if(label==='Shotcrete') return 'shotcrete';
+  if(label==='Rock Bolt') return 'rockbolt';
+  if(label==='Support Works') return 'support';
+  if(label==='Concreting') return 'concreting';
+  if(label==='Reinforcement / Rebar') return 'rebar';
+  if(label==='Formwork') return 'formwork';
+  if(label==='Steel Works') return 'steel';
+  if(label==='Grouting') return 'grouting';
+  if(label==='Backfilling') return 'backfilling';
   const a = String(activity||'').toLowerCase();
-  if(/excavat|cutting|muck|spoil|bms|hard rock|soft rock|drill|blast|breaker/.test(a)) return 'excavation';
-  if(/gabion|riprap|pitch|masonry|shotcrete|rockbolt|rock bolt|bolt|wire ?mesh|drainage|geotextile|forepoling|protection|floodwall|river training/.test(a)) return 'protection';
-  if(/concrete|rcc|pcc|m10|m15|m20|m25|m30|m35|m40|plum|blinding|lining|infill/.test(a)) return 'concreting';
-  if(/rebar|reinforcement|tmt|bar reinforcement/.test(a)) return 'rebar';
+  if(/formwork|shuttering|centering/.test(a)) return 'formwork';
   if(/formwork|shuttering|centering/.test(a)) return 'formwork';
   return 'other';
 }
@@ -8127,18 +8473,76 @@ function getDashboardSections(){
   return (state.structures||[]).filter(s => s.category !== 'group' && (s.items||[]).length);
 }
 
+function boqFlatRows(){
+  normalizeAllBoqItems();
+  const rows = [];
+  (state.structures||[]).filter(s=>s.category!=='group').forEach(s=>{
+    (s.items||[]).forEach(i=>{
+      rows.push({
+        section:s,
+        item:i,
+        sectionName:s.name,
+        heading:boqHeadingForSection(s.name),
+        key:ipcLineKey({structure:s.name,itemNo:i.itemNo,description:i.activity,activity:i.activity}),
+        category:classifyBoqCategory(i.workCategory || i.activity),
+        location:i.location || s.name,
+        originalAmount:itemOriginalAmount(i),
+        revisedAmount:itemAmount(i),
+        originalQty:Number(i.originalQty)||0,
+        revisedQty:Number(i.revisedQty)||0,
+        variationAmount:Number(i.variationAmount)||0,
+        variationQty:Number(i.variationQty)||0
+      });
+    });
+  });
+  return rows;
+}
+
+function cumulativeIpcMap(finalOnly=true){
+  const map = new Map();
+  (state.ipcs||[]).filter(i=>!finalOnly || isFinalIpcStatus(i.status)).forEach(ipc=>{
+    (ipc.lineItems||[]).forEach(line=>{
+      const key = ipcLineKey(line);
+      const cur = map.get(key) || {qty:0, amount:0};
+      cur.qty += Number(line.qty)||0;
+      cur.amount += Number(line.amount)||0;
+      map.set(key, cur);
+    });
+  });
+  return map;
+}
+
+function findIpcProgressForBoqRow(row, map){
+  let hit = map.get(row.key);
+  if(hit) return hit;
+  const loose = Array.from(map.entries()).find(([k])=>{
+    const parts = k.split('|');
+    return parts[0] === String(row.sectionName||'').toLowerCase().trim() &&
+      (parts[2].includes(String(row.item.activity||'').toLowerCase().trim()) || String(row.item.activity||'').toLowerCase().includes(parts[2]));
+  });
+  return loose ? loose[1] : {qty:0, amount:0};
+}
+
 function summarizeSection(s){
   const cats = {};
   Object.keys(BOQ_PROGRESS_CATEGORIES).forEach(k => cats[k] = {key:k, label:BOQ_PROGRESS_CATEGORIES[k], qty:0, done:0, amount:0, earned:0, count:0});
+  const ipcMap = cumulativeIpcMap(true);
   (s.items||[]).forEach(i=>{
-    const key = classifyBoqCategory(i.activity);
+    normalizeBoqItem(i);
+    const key = classifyBoqCategory(i.workCategory || i.activity);
     const row = cats[key] || cats.other;
-    const qty = Number(i.plannedQty)||0;
-    const done = itemActualQty(s.id, i.id);
+    const qty = Number(i.revisedQty)||0;
+    const done = findIpcProgressForBoqRow({
+      section:s,item:i,sectionName:s.name,
+      key:ipcLineKey({structure:s.name,itemNo:i.itemNo,description:i.activity,activity:i.activity})
+    }, ipcMap).qty;
     row.qty += qty;
     row.done += done;
     row.amount += itemAmount(i);
-    row.earned += itemEarned(s.id, i);
+    row.earned += findIpcProgressForBoqRow({
+      section:s,item:i,sectionName:s.name,
+      key:ipcLineKey({structure:s.name,itemNo:i.itemNo,description:i.activity,activity:i.activity})
+    }, ipcMap).amount;
     row.count += 1;
   });
   const amount = Object.values(cats).reduce((sum,x)=>sum+x.amount,0);
@@ -8156,19 +8560,20 @@ function periodKeyForDate(date, mode){
 
 function sectionPeriodSeries(sectionId, mode){
   const rows = {};
-  (state.logs||[]).filter(l=>l.structureId===sectionId).forEach(l=>{
-    const s = state.structures.find(x=>x.id===l.structureId);
-    const i = s ? (s.items||[]).find(x=>x.id===l.itemId) : null;
-    if(!i) return;
-    const key = periodKeyForDate(l.date, mode);
-    if(!key) return;
+  const section = state.structures.find(x=>x.id===sectionId);
+  if(!section) return [];
+  (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status)).forEach(ipc=>{
+    const date = ipc.submittedDate || ipc.approvedDate || ipc.paidDate || ipc.periodTo || ipc.periodFrom || '';
+    const key = periodKeyForDate(date, mode) || ipc.no || 'IPC';
     rows[key] = rows[key] || {key, qty:0, amount:0, byCat:{}};
-    const cat = classifyBoqCategory(i.activity);
-    const qty = Number(l.qty)||0;
-    const amt = qty * (Number(i.rate)||0);
-    rows[key].qty += qty;
-    rows[key].amount += amt;
-    rows[key].byCat[cat] = (rows[key].byCat[cat]||0) + amt;
+    (ipc.lineItems||[]).filter(l=>String(l.structure||l.boqSection||'').trim()===section.name).forEach(l=>{
+      const cat = classifyBoqCategory(l.workCategory || l.description || l.activity);
+      const qty = Number(l.qty)||0;
+      const amt = Number(l.amount)||0;
+      rows[key].qty += qty;
+      rows[key].amount += amt;
+      rows[key].byCat[cat] = (rows[key].byCat[cat]||0) + amt;
+    });
   });
   return Object.values(rows).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,24);
 }
@@ -8227,10 +8632,75 @@ function renderSectionProgressDashboard(sectionId){
           <tbody>${periodRows.length ? periodRows.map(x=>{
             const top = Object.entries(x.byCat).sort((a,b)=>b[1]-a[1])[0];
             return `<tr><td>${escapeHtml(x.key)}</td><td class="num">${fmt2(x.qty)}</td><td class="num">${fmtCr(x.amount)}</td><td>${top ? escapeHtml(BOQ_PROGRESS_CATEGORIES[top[0]] || top[0]) : '-'}</td></tr>`;
-          }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:22px">No DPR quantity logged for this section in ${mode} view.</td></tr>`}</tbody>
+          }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:22px">No certified IPC quantity found for this section in ${mode} view.</td></tr>`}</tbody>
         </table>
       </div>
     </div>`;
+}
+
+function renderTunnelProgressMonitoring(){
+  const host = document.getElementById('tunnelProgressHost');
+  if(!host) return;
+  const tunnels = getDashboardSections().filter(s=>/tunnel|adit|shaft|hrt|surge/i.test(s.name) || s.category==='tunnel' || s.category==='underground');
+  if(!tunnels.length){
+    host.innerHTML = `<div class="empty"><i class="bi bi-circle-half"></i><div class="empty-title">No tunnel sections</div><div class="empty-sub">Create tunnel/adit/shaft BOQ sections in BOQ Setup.</div></div>`;
+    return;
+  }
+  const ipcMap = cumulativeIpcMap(true);
+  const R = 30, CIRC = 2 * Math.PI * R;
+  const donut = (pct, cls='') => {
+    const p = Math.max(0, Math.min(100, Number(pct)||0));
+    const off = CIRC * (1 - p/100);
+    return `<div class="lp-donut ${cls}">
+      <svg viewBox="0 0 72 72">
+        <circle class="lp-donut-track" cx="36" cy="36" r="${R}"/>
+        <circle class="lp-donut-fill" cx="36" cy="36" r="${R}" stroke-dasharray="${CIRC.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>
+      </svg>
+      <div class="lp-donut-pct">${p.toFixed(0)}%</div>
+    </div>`;
+  };
+  host.innerHTML = `<div class="tunnel-monitor-grid">${tunnels.map(s=>{
+    const rows = (s.items||[]).map(i=>{
+      normalizeBoqItem(i);
+      const prog = findIpcProgressForBoqRow({
+        section:s,item:i,sectionName:s.name,
+        key:ipcLineKey({structure:s.name,itemNo:i.itemNo,description:i.activity,activity:i.activity})
+      }, ipcMap);
+      return {item:i, cat:classifyBoqCategory(i.workCategory||i.activity), planned:Number(i.revisedQty)||0, done:Number(prog.qty)||0, amount:Number(prog.amount)||0};
+    });
+    const lengthItems = rows.filter(r=>String(r.item.unit||'').toLowerCase()==='m' || /length|advance|chainage/i.test(r.item.activity||''));
+    const totalLen = Number(s.length)||lengthItems.reduce((a,r)=>a+r.planned,0)||rows.filter(r=>r.cat==='excavation').reduce((a,r)=>a+r.planned,0);
+    const lengthDone = name => {
+      const arr = lengthItems.filter(r=>name==='excavation' ? /excavat|advance|chainage|length/i.test(r.item.activity||'') : new RegExp(name,'i').test(r.item.activity||''));
+      return arr.reduce((a,r)=>a+r.done,0);
+    };
+    const excavation = lengthDone('excavation') || rows.filter(r=>r.cat==='excavation').reduce((a,r)=>a+r.done,0);
+    const support = rows.filter(r=>['support','shotcrete','rockbolt','steel','grouting'].includes(r.cat)).reduce((a,r)=>a+r.done,0);
+    const concreting = rows.filter(r=>r.cat==='concreting').reduce((a,r)=>a+r.done,0);
+    const balance = Math.max(0, (totalLen||0) - excavation);
+    const catRows = Object.keys(BOQ_PROGRESS_CATEGORIES).map(k=>{
+      const arr = rows.filter(r=>r.cat===k);
+      const planned = arr.reduce((a,r)=>a+r.planned,0);
+      const done = arr.reduce((a,r)=>a+r.done,0);
+      return {key:k,label:BOQ_PROGRESS_CATEGORIES[k],planned,done,pct:planned?(done/planned)*100:0};
+    }).filter(x=>x.planned || x.done).slice(0,6);
+    return `<div class="tunnel-monitor-card">
+      <div class="tunnel-monitor-title">${escapeHtml(s.name)}</div>
+      <div class="tunnel-monitor-sub">Original length ${fmt2(totalLen||0)} m · Balance ${fmt2(balance)} m</div>
+      <div class="tunnel-rings">
+        <div class="tunnel-ring">${donut(totalLen?excavation/totalLen*100:0)}<div class="tunnel-ring-label">Excavation</div></div>
+        <div class="tunnel-ring">${donut(totalLen?support/totalLen*100:0)}<div class="tunnel-ring-label">Support</div></div>
+        <div class="tunnel-ring">${donut(totalLen?concreting/totalLen*100:0)}<div class="tunnel-ring-label">Concreting</div></div>
+        <div class="tunnel-ring">${donut(totalLen?balance/totalLen*100:0)}<div class="tunnel-ring-label">Balance</div></div>
+      </div>
+      <div style="overflow-x:auto;margin-top:10px">
+        <table style="font-size:11px">
+          <thead><tr><th>Breakdown</th><th class="num">Revised Qty</th><th class="num">IPC Qty</th><th class="num">%</th></tr></thead>
+          <tbody>${catRows.map(x=>`<tr><td>${escapeHtml(x.label)}</td><td class="num">${fmt2(x.planned)}</td><td class="num">${fmt2(x.done)}</td><td class="num">${fmtPct(x.pct)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 /* ---- Render Dashboard ---- */
@@ -8240,9 +8710,13 @@ function renderDashboard(){
   renderTimeline();
   renderDashboardMilestones();
   const c = chartCols();
-  const overall = overallPct();
-  const totalAmt = projectAmount();
-  const earnedAmt = projectEarned();
+  syncProjectCostsFromItems();
+  const totalAmt = projectAmountExVat();
+  const boqInclVat = projectCostInclVat();
+  const approvedIPCs = (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status));
+  const totalInclVAT = cumulativeIpcCertifiedAmount();
+  const earnedAmt = approvedIPCs.reduce((s,i)=>s+calcIPC(i).net,0);
+  const overall = totalAmt ? (earnedAmt/totalAmt)*100 : 0;
 
   // Today/week/month earned
   const today = new Date().toISOString().slice(0,10);
@@ -8255,13 +8729,8 @@ function renderDashboard(){
   const totalLogs = state.logs.length;
   const activeStructs = state.structures.filter(s=>s.category!=='group' && (s.items||[]).length).length;
 
-  // Financial progress (Manual Bill Amount + Mobilization Advance) / Contract Value
-  const approvedIPCs = (state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status));
-  const totalInclVAT = approvedIPCs.reduce((s,i)=>{const c=calcIPC(i); return s+c.totalWithVAT;}, 0);
-  const contractValue = Number(state.project.contractValue)||0;
-  const billAmt = Number(state.payment?.billAmount)||0;
-  const advAmt = Number(state.payment?.advanceAmount)||0;
-  const finPct = contractValue ? ((billAmt + advAmt)/contractValue)*100 : 0;
+  const contractValue = Number(state.project.contractValue)||boqInclVat;
+  const finPct = boqInclVat ? (totalInclVAT/boqInclVat)*100 : 0;
 
   document.getElementById('kpiHost').innerHTML = `
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-speedometer2"></i></div>
@@ -8271,27 +8740,27 @@ function renderDashboard(){
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
       <div class="kpi-label">BOQ Cost Incl. VAT</div>
-      <div class="kpi-value">${fmtCr(costInclVat(totalAmt))}</div>
+      <div class="kpi-value">${fmtCr(boqInclVat)}</div>
       <div class="kpi-sub">${ccy()} · ${activeStructs} active structures</div>
     </div>
     <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
-      <div class="kpi-label">Earned to Date</div>
+      <div class="kpi-label">IPC Certified Excl. VAT</div>
       <div class="kpi-value">${fmtCr(earnedAmt)}</div>
       <div class="kpi-sub">${ccy()} · ${totalLogs} log entries</div>
     </div>
     <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
-      <div class="kpi-label">Baseline + VAT</div>
-      <div class="kpi-value">${fmtCr(costInclVat(state.project.baselineCost || 0))}</div>
+      <div class="kpi-label">Baseline Cost</div>
+      <div class="kpi-value">${fmtCr(state.project.baselineCost || boqInclVat)}</div>
       <div class="kpi-sub">${ccy()} · original contract</div>
     </div>
     <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-plus-circle"></i></div>
-      <div class="kpi-label">VO + VAT</div>
-      <div class="kpi-value">${fmtCr(costInclVat(state.project.voCost || 0))}</div>
+      <div class="kpi-label">Variation Summary</div>
+      <div class="kpi-value">${fmtCr(state.project.voCost || 0)}</div>
       <div class="kpi-sub">${ccy()} · variation orders</div>
     </div>
     <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-arrow-repeat"></i></div>
-      <div class="kpi-label">Revised + VAT</div>
-      <div class="kpi-value">${fmtCr(costInclVat(state.project.revisedCost || 0))}</div>
+      <div class="kpi-label">Remaining Works</div>
+      <div class="kpi-value">${fmtCr(Math.max(0,totalAmt-earnedAmt))}</div>
       <div class="kpi-sub">${ccy()} · total revised</div>
     </div>
     <div class="kpi"><div class="kpi-icon"><i class="bi bi-calendar-day"></i></div>
@@ -8318,10 +8787,11 @@ function renderDashboard(){
       <div class="kpi-label">Financial Progress</div>
       <div class="kpi-value">${fmtPct(finPct)}</div>
       <div class="bar bar-good" style="margin-top:6px"><i style="width:${Math.min(100,finPct)}%"></i></div>
-      <div class="kpi-sub">bill + advance vs contract</div>
+      <div class="kpi-sub">certified IPC / BOQ cost incl. VAT</div>
     </div>`;
 
   renderSectionProgressDashboard();
+  renderTunnelProgressMonitoring();
 
   // Hidden legacy charts retained for export/print compatibility.
   // S-curve (cumulative %)
@@ -8500,14 +8970,14 @@ function renderFinancialProgress(){
   if(!host) return;
   const sub = document.getElementById('finProgSubText');
 
-  const contract = Number(state.project.contractValue) || Number(state.project.revisedCost) || 0;
-  const bill = Number(state.payment?.billAmount) || 0;
+  const contract = projectCostInclVat() || Number(state.project.contractValue) || Number(state.project.revisedCost) || 0;
+  const bill = cumulativeIpcCertifiedAmount();
   const advTotal = Number(state.payment?.advanceAmount) || 0;
   const advRecovered = Number(state.payment?.advanceRecovered) || 0;
   const advBalance = Math.max(0, advTotal - advRecovered);
   const advRecoveredPct = advTotal ? Math.min(100, (advRecovered/advTotal)*100) : 0;
 
-  const finAmount = bill + advTotal;
+  const finAmount = bill;
   const finPct = contract ? Math.min(100, (finAmount/contract)*100) : 0;
   const billPct = contract ? Math.min(100, (bill/contract)*100) : 0;
   const advPctOfContract = contract ? Math.min(100, (advTotal/contract)*100) : 0;
@@ -8551,10 +9021,10 @@ function renderFinancialProgress(){
 
   host.innerHTML = `
     <div class="lp-tile-grid">
-      ${tile('good', 'percent',           'Financial Progress', '= bill paid + advance',
+      ${tile('good', 'percent',           'Financial Progress', '= cumulative certified IPC',
               fmtCr(finAmount), finPct,
-              `${fmtCr(bill)} + ${fmtCr(advTotal)}`)}
-      ${tile('info', 'receipt-cutoff',    'Bill Paid',          'paid to contractor (manual)',
+              `${fmtCr(bill)} certified`)}
+      ${tile('info', 'receipt-cutoff',    'Total IPC Certified', 'approved/final/paid IPCs',
               fmtCr(bill), billPct,
               contract ? `${fmtPct(billPct)} of contract` : 'set contract value')}
       ${tile('warn', 'arrow-down-circle', 'Mobilization Advance', 'paid to contractor',
@@ -8569,22 +9039,22 @@ function renderFinancialProgress(){
     </div>
     <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--text-3)">
       <i class="bi bi-info-circle" style="color:var(--accent)"></i>
-      <strong style="color:var(--text-1)">Financial Progress = Bill Paid + Advance Paid</strong> = ${fmtCr(bill)} + ${fmtCr(advTotal)} = <strong style="color:var(--good)">${fmtCr(finAmount)}</strong> · ${fmtPct(finPct)} of the ${fmtCr(contract)} contract.
+      <strong style="color:var(--text-1)">Financial Progress = Cumulative Certified IPC Amount / BOQ Cost Incl. VAT</strong> = <strong style="color:var(--good)">${fmtCr(finAmount)}</strong> · ${fmtPct(finPct)} of the ${fmtCr(contract)} contract.
       Update both figures in the
       <a href="#" onclick="document.querySelector('[data-page=ipc]').click();return false" style="color:var(--brand);font-weight:600">IPC</a> tab.
     </div>`;
 }
 
 /* ============================================================
-   COST BREAKDOWN — linked to daily logs
+   COST BREAKDOWN — linked to cumulative IPC
    ============================================================ */
 function renderCostBreakdown(){
   const host = document.getElementById('costBreakdownHost');
   if(!host) return;
-  const baseline = Number(state.project.baselineCost) || 0;
+  const baseline = Number(state.project.baselineCost) || projectCostInclVat();
   const vo = Number(state.project.voCost) || 0;
-  const revised = (Number(state.project.revisedCost) || 0) || (baseline + vo);
-  const earned = projectEarned();                        // ← linked to daily logs
+  const revised = (Number(state.project.revisedCost) || 0) || baseline;
+  const earned = cumulativeIpcCertifiedAmount();
   const remaining = Math.max(0, revised - earned);
   const denom = revised || baseline || 1;
   const pct = v => Math.max(0, Math.min(100, (v/denom)*100));
@@ -8624,26 +9094,26 @@ function renderCostBreakdown(){
   host.innerHTML = `
     <div class="lp-tile-grid">
       ${tile('info', 'bank',          'Baseline Contract', 'original contract amount',
-              fmtCr(costInclVat(baseline)), pct(baseline),
+              fmtCr(baseline), pct(baseline),
               revised ? fmtPct((baseline/revised)*100) + ' of revised' : '—')}
       ${tile('warn', 'plus-circle',   'Variation Orders',  'approved variations',
-              fmtCr(costInclVat(vo)), pct(vo),
+              fmtCr(vo), pct(vo),
               revised ? fmtPct((vo/revised)*100) + ' of revised' : 'no variations')}
       ${tile('',     'arrow-repeat',  'Revised Total',     'baseline + variations',
-              fmtCr(costInclVat(revised)), 100,
+              fmtCr(revised), 100,
               `${projectVatPct()}% VAT included`)}
-      ${tile('good', 'check2-circle', 'Billed / Earned',   'live from daily logs',
+      ${tile('good', 'check2-circle', 'IPC Certified',   'cumulative certified IPC',
               fmtCr(earned), pct(earned),
-              `${state.logs.length} log entries`)}
+              `${(state.ipcs||[]).filter(i=>isFinalIpcStatus(i.status)).length} approved IPCs`)}
       ${tile('bad',  'hourglass-split','Remaining to Bill','still to earn',
               fmtCr(remaining), pct(remaining),
               revised ? fmtPct((remaining/revised)*100) + ' of revised' : '—')}
     </div>
     <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--text-3)">
       <i class="bi bi-info-circle" style="color:var(--accent)"></i>
-      <strong style="color:var(--text-1)">Linked to Daily Logs:</strong>
-      Billed and Remaining values are computed live from every entry in the <em>Daily Log Sheet</em> using each activity's quantity × rate.
-      View item-wise bill amounts and print measurement sheets in the <a href="#" onclick="document.querySelector('[data-page=billing]').click();return false" style="color:var(--brand);font-weight:600">Billing</a> tab.
+      <strong style="color:var(--text-1)">Linked to IPC:</strong>
+      Certified and Remaining values are computed from approved/final/paid IPC quantities and amounts.
+      View IPC-wise measurements in the <a href="#" onclick="document.querySelector('[data-page=ipc]').click();return false" style="color:var(--brand);font-weight:600">IPC</a> tab.
     </div>`;
 }
 
