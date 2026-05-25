@@ -1513,6 +1513,7 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
         <button class="tab-btn" data-page="events"><i class="bi bi-exclamation-triangle-fill"></i> Events</button>
         <button class="tab-btn" data-page="ipc"><i class="bi bi-receipt"></i> IPC &amp; Payments</button>
         <button class="tab-btn" data-page="dashboard"><i class="bi bi-bar-chart-fill"></i> Dashboard</button>
+        <button class="tab-btn" data-page="employer"><i class="bi bi-building-check"></i> Employer Control</button>
         <button class="tab-btn" data-page="billing"><i class="bi bi-receipt"></i> Billing</button>
         <button class="tab-btn" data-page="reports"><i class="bi bi-file-earmark-text"></i> Reports</button>
       </nav>
@@ -2340,6 +2341,154 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
       </div>
     </section>
 
+    <!-- ===== EMPLOYER CONTROL ROOM ===== -->
+    <section class="page" id="page-employer">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title"><i class="bi bi-building-check"></i> Employer Control Room</h1>
+          <div class="page-sub">WBS-linked site data, verification, alerts, IPC checks and hydropower-specific reports. Existing data is only read, never overwritten.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="renderEmployerControl()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          <button class="btn btn-soft" onclick="exportEmployerControlCSV()"><i class="bi bi-file-earmark-spreadsheet"></i> Export</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="ecKpiHost" style="margin-bottom:18px"></div>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <h3><i class="bi bi-funnel" style="margin-right:6px;color:var(--brand)"></i> Search, Filter &amp; Drill-Down</h3>
+          <span style="font-size:11px;color:var(--text-3)">project -> structure -> activity -> BOQ -> daily record -> evidence</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Date From</label><input type="date" id="ecDateFrom" onchange="renderEmployerControl()"></div>
+            <div class="field"><label>Date To</label><input type="date" id="ecDateTo" onchange="renderEmployerControl()"></div>
+            <div class="field"><label>Structure</label><select id="ecFilterStructure" onchange="renderEmployerControl()"></select></div>
+            <div class="field"><label>Status</label><select id="ecFilterStatus" onchange="renderEmployerControl()"></select></div>
+            <div class="field" style="grid-column:span 2"><label>Search</label><input type="text" id="ecSearch" oninput="renderEmployerControl()" placeholder="contractor, activity, chainage, BOQ, remarks"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="g2" style="margin-bottom:18px">
+        <div class="card">
+          <div class="card-head"><h3>Daily Site Progress</h3><span style="font-size:11px;color:var(--text-3)">approved records feed official control-room analysis</span></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Date</label><input type="date" id="ecDailyDate"></div>
+              <div class="field"><label>Contract Package</label><input type="text" id="ecPackage" placeholder="CW-01"></div>
+              <div class="field"><label>Contractor</label><input type="text" id="ecContractor"></div>
+              <div class="field"><label>Structure</label><select id="ecDailyStructure" onchange="ecPopulateItems('ecDailyStructure','ecDailyItem')"></select></div>
+              <div class="field"><label>Activity / BOQ Item</label><select id="ecDailyItem"></select></div>
+              <div class="field"><label>Today Quantity</label><input type="number" id="ecTodayQty" step="0.01"></div>
+              <div class="field"><label>Location / Block</label><input type="text" id="ecLocation" placeholder="chainage, bay, level"></div>
+              <div class="field"><label>Chainage</label><input type="text" id="ecChainage" placeholder="e.g. 1+240"></div>
+              <div class="field"><label>Level</label><input type="text" id="ecLevel" placeholder="masl / lift"></div>
+              <div class="field"><label>Prepared By</label><input type="text" id="ecPreparedBy"></div>
+              <div class="field"><label>Checked By</label><input type="text" id="ecCheckedBy"></div>
+              <div class="field"><label>Approval Status</label><select id="ecApprovalStatus"></select></div>
+              <div class="field" style="grid-column:1/-1"><label>Remarks / Delay Reason / Drawing Reference</label><textarea id="ecRemarks" rows="2"></textarea></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+              <button class="btn btn-primary" onclick="saveEmployerDailyProgress()"><i class="bi bi-check2"></i> Save Daily Record</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Hydropower-Specific Form</h3><span style="font-size:11px;color:var(--text-3)">tunnel, powerhouse, headworks, penstock / pressure shaft</span></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Date</label><input type="date" id="ecHydroDate"></div>
+              <div class="field"><label>Form Type</label><select id="ecHydroType" onchange="renderHydroFormFields()"></select></div>
+              <div class="field"><label>Structure / Component</label><input type="text" id="ecHydroComponent"></div>
+              <div class="field"><label>Chainage / Level / Block</label><input type="text" id="ecHydroLocation"></div>
+              <div class="field"><label>Daily Quantity / Advance</label><input type="number" id="ecHydroQty" step="0.01"></div>
+              <div class="field"><label>Unit</label><input type="text" id="ecHydroUnit" placeholder="m, m3, MT, nos"></div>
+              <div class="field" style="grid-column:1/-1"><label id="ecHydroDetailLabel">Hydropower Details</label><textarea id="ecHydroDetails" rows="4"></textarea></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+              <button class="btn btn-primary" onclick="saveHydroSpecificRecord()"><i class="bi bi-check2"></i> Save Hydropower Record</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="g2" style="margin-bottom:18px">
+        <div class="card">
+          <div class="card-head"><h3>Resources, Materials &amp; Evidence</h3></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Record Type</label><select id="ecAssetType" onchange="renderEmployerControl()"><option value="manpower">Manpower</option><option value="equipment">Equipment</option><option value="material">Material</option><option value="evidence">Photo / Video Evidence</option></select></div>
+              <div class="field"><label>Date</label><input type="date" id="ecAssetDate"></div>
+              <div class="field"><label>Contractor</label><input type="text" id="ecAssetContractor"></div>
+              <div class="field"><label>Structure / Location</label><input type="text" id="ecAssetLocation"></div>
+              <div class="field"><label>Name / Category</label><input type="text" id="ecAssetName" placeholder="skilled worker, excavator, cement, before photo"></div>
+              <div class="field"><label>Quantity / Hours / Count</label><input type="number" id="ecAssetQty" step="0.01"></div>
+              <div class="field"><label>Opening / Idle / Received</label><input type="number" id="ecAssetAux1" step="0.01"></div>
+              <div class="field"><label>Consumed / Breakdown / Balance</label><input type="number" id="ecAssetAux2" step="0.01"></div>
+              <div class="field" style="grid-column:1/-1"><label>Remarks / Link / GPS / Operator</label><textarea id="ecAssetRemarks" rows="2"></textarea></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+              <button class="btn btn-primary" onclick="saveEmployerAssetRecord()"><i class="bi bi-check2"></i> Save Record</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Delay, Decision &amp; IPC Check</h3></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Date</label><input type="date" id="ecDelayDate"></div>
+              <div class="field"><label>Type</label><select id="ecDelayType"></select></div>
+              <div class="field"><label>Structure / Activity</label><input type="text" id="ecDelayActivity"></div>
+              <div class="field"><label>Responsible Party</label><input type="text" id="ecDelayParty"></div>
+              <div class="field"><label>Affected Days</label><input type="number" id="ecDelayDays" step="0.5"></div>
+              <div class="field"><label>Target Resolution</label><input type="date" id="ecDelayTarget"></div>
+              <div class="field"><label>Status</label><select id="ecDelayStatus"><option>Open</option><option>Action Required</option><option>Resolved</option><option>Closed</option></select></div>
+              <div class="field"><label>IPC Claimed Qty</label><input type="number" id="ecIpcClaimed" step="0.01"></div>
+              <div class="field"><label>Verified Site Qty</label><input type="number" id="ecIpcVerified" step="0.01"></div>
+              <div class="field" style="grid-column:1/-1"><label>Action Required / Remarks</label><textarea id="ecDelayRemarks" rows="2"></textarea></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+              <button class="btn btn-primary" onclick="saveEmployerDelayRecord()"><i class="bi bi-check2"></i> Save Delay / IPC Record</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="g2" style="margin-bottom:18px">
+        <div class="card"><div class="card-head"><h3>Verification &amp; Approval Queue</h3></div><div class="card-body" id="ecApprovalHost"></div></div>
+        <div class="card"><div class="card-head"><h3>Alerts &amp; Decision Required</h3></div><div class="card-body" id="ecAlertHost"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Employer Control Reports</h3>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="ecReportType" onchange="renderEmployerControl()">
+              <option value="daily">Daily Progress Report</option>
+              <option value="weekly">Weekly Progress Report</option>
+              <option value="monthly">Monthly Progress Report</option>
+              <option value="structure">Structure-wise Report</option>
+              <option value="contractor">Contractor-wise Report</option>
+              <option value="tunnel">Tunnel Progress Report</option>
+              <option value="powerhouse">Powerhouse Progress Report</option>
+              <option value="resource">Material / Manpower / Equipment Report</option>
+              <option value="delay">Delay Report</option>
+              <option value="ipc">IPC Support Report</option>
+              <option value="board">Bank / Board Summary</option>
+              <option value="photo">Photo Progress Report</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+          </div>
+        </div>
+        <div class="card-body" id="ecReportHost"></div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -2638,6 +2787,7 @@ const DEFAULT = {
   weather:[],     // daily weather logs
   infrastructure:[], // daily infra logs: {id,date,by,notes,facilities:{key:{status,hoursAvail,metricValue,detail}}}
   infraFacilities:null, // [{key,label,icon,metricLabel}] — null means use defaults
+  employerControl:null, // backward-compatible hydropower control-room modules
   undergroundLengthProgress:null,
   username:'',
   role:'guest',
@@ -2663,6 +2813,7 @@ let state = (()=>{
       data.weather = data.weather || [];
       data.infrastructure = data.infrastructure || [];
       data.infraFacilities = data.infraFacilities || null;
+      data.employerControl = data.employerControl || null;
       data.undergroundLengthProgress = data.undergroundLengthProgress || null;
       data.username = data.username || '';
       data.role = data.role || 'guest';
@@ -2826,6 +2977,7 @@ function selectRole(r){
     if(id==='infrastructure') renderInfrastructure();
     if(id==='events') renderEvents();
     if(id==='dashboard') renderDashboard();
+    if(id==='employer') renderEmployerControl();
     if(id==='ipc') renderIPC();
   }
   toast(`Switched to ${ROLE_DEFS[r].name}`,'good');
@@ -3312,6 +3464,7 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
     if(id==='planning') renderPlanning();
     if(id==='ipc') renderIPC();
     if(id==='billing') renderBilling();
+    if(id==='employer') renderEmployerControl();
     window.scrollTo({top:0,behavior:'smooth'});
   });
 });
@@ -4163,6 +4316,284 @@ function renderLogs(){
         </div>
       </div>`;
   }).join('') + (logs.length>50?`<div style="text-align:center;color:var(--text-3);font-size:12px;padding:12px">Showing 50 of ${logs.length} entries</div>`:'');
+}
+
+/* ---- Employer Control Room (backward-compatible extension) ---- */
+const EC_STATUS_FLOW = ['Draft','Submitted','Checked','Verified','Approved','Locked','Revision Requested'];
+const EC_HYDRO_FORMS = {
+  tunnel:{label:'Tunnel Progress', detail:'Face, chainage from/to, rock class, excavation type, mucking, ventilation, seepage, support type, rock bolt, shotcrete, steel rib, geology, delay reason, photo evidence'},
+  powerhouse:{label:'Powerhouse Progress', detail:'Area, starting level, design level, current excavation level, block/bay/level, shotcrete, rock bolt, drainage, concrete, rebar, formwork, photo evidence'},
+  headworks:{label:'Headworks Progress', detail:'Weir, intake, undersluice, gravel trap, desander, cofferdam, river diversion, excavation, concrete, rebar, formwork, flood or monsoon risk'},
+  penstock:{label:'Penstock / Pressure Shaft', detail:'Excavation, anchor block, saddle support, pipe fabrication, delivery, erection, welding, NDT, hydro test, coating, chainage, pipe length installed'}
+};
+const EC_DELAY_TYPES = ['Contractor Delay','Employer Decision Pending','Drawing Pending','Land Issue','Local Obstruction','Weather','Flood / Monsoon','Geological Issue','Material Shortage','Equipment Breakdown','Design Change','Access Road Blockage','Explosive Shortage','Approval Pending','Safety Incident','RFI Pending'];
+
+function emptyEmployerControl(){
+  return {
+    wbsMappings:[],
+    dailySiteReports:[],
+    dailyProgressRecords:[],
+    tunnelProgressRecords:[],
+    powerhouseProgressRecords:[],
+    headworksProgressRecords:[],
+    penstockProgressRecords:[],
+    manpowerLogs:[],
+    equipmentLogs:[],
+    materialLogs:[],
+    photoEvidence:[],
+    delayLogs:[],
+    approvalWorkflowLogs:[],
+    revisionHistory:[],
+    dashboardAlerts:[],
+    ipcProgressMapping:[],
+    reportGenerationLogs:[]
+  };
+}
+
+function ensureEmployerControl(){
+  state.employerControl = Object.assign(emptyEmployerControl(), state.employerControl || {});
+  Object.keys(emptyEmployerControl()).forEach(k=>{ state.employerControl[k] = state.employerControl[k] || []; });
+  return state.employerControl;
+}
+
+function ecIsApproved(r){
+  return !r.approvalStatus || ['Approved','Locked','Verified'].includes(r.approvalStatus);
+}
+
+function ecStructureOptions(selected=''){
+  return `<option value="">All structures</option>` + state.structures.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(getStructPath(s))}</option>`).join('');
+}
+
+function ecPopulateItems(structId, itemId){
+  const s = state.structures.find(x=>x.id===document.getElementById(structId)?.value);
+  const itemSel = document.getElementById(itemId);
+  if(!itemSel) return;
+  itemSel.innerHTML = s ? (s.items||[]).map(i=>`<option value="${i.id}">${escapeHtml(i.activity)} (${escapeHtml(i.unit||'')})</option>`).join('') : '<option value="">Select structure first</option>';
+}
+
+function ecFindItem(record){
+  const s = state.structures.find(x=>x.id===record.structureId);
+  const item = s ? (s.items||[]).find(x=>x.id===record.itemId) : null;
+  return {s,item};
+}
+
+function ecRecordValue(record){
+  const {item} = ecFindItem(record);
+  return (Number(record.todayQty ?? record.qty)||0) * (Number(item?.rate)||0);
+}
+
+function ecOfficialProgressRecords(){
+  const ec = ensureEmployerControl();
+  const legacy = (state.logs||[]).map(l=>({
+    id:l.id, date:l.date, structureId:l.structureId, itemId:l.itemId, todayQty:Number(l.qty)||0,
+    contractor:state.project.contractor, approvalStatus:'Approved', remarks:l.remarks, source:'Daily Log'
+  }));
+  return legacy.concat(ec.dailyProgressRecords||[]);
+}
+
+function ecFilteredProgressRecords(){
+  const from = document.getElementById('ecDateFrom')?.value || '';
+  const to = document.getElementById('ecDateTo')?.value || '';
+  const sid = document.getElementById('ecFilterStructure')?.value || '';
+  const status = document.getElementById('ecFilterStatus')?.value || '';
+  const q = (document.getElementById('ecSearch')?.value || '').toLowerCase();
+  return ecOfficialProgressRecords().filter(r=>{
+    const {s,item} = ecFindItem(r);
+    const blob = [r.date,r.contractor,r.location,r.chainage,r.level,r.remarks,r.approvalStatus,s?.name,item?.activity,item?.unit].filter(Boolean).join(' ').toLowerCase();
+    return (!from || (r.date||'')>=from) && (!to || (r.date||'')<=to) && (!sid || r.structureId===sid) && (!status || r.approvalStatus===status) && (!q || blob.includes(q));
+  });
+}
+
+function ecSummary(){
+  const rows = ecOfficialProgressRecords();
+  const approved = rows.filter(ecIsApproved);
+  const pending = rows.filter(r=>!ecIsApproved(r));
+  const total = totalBoqAmount();
+  const approvedValue = approved.reduce((sum,r)=>sum+ecRecordValue(r),0);
+  const pendingValue = pending.reduce((sum,r)=>sum+ecRecordValue(r),0);
+  const today = new Date().toISOString().slice(0,10);
+  const weekStart = (()=>{ const d=new Date(); const day=d.getDay(); d.setDate(d.getDate()+(day===0?-6:1-day)); return d.toISOString().slice(0,10); })();
+  return {
+    total, approvedValue, pendingValue,
+    physicalPct: total ? approvedValue/total*100 : 0,
+    pendingPct: total ? pendingValue/total*100 : 0,
+    todayValue: approved.filter(r=>r.date===today).reduce((s,r)=>s+ecRecordValue(r),0),
+    weekValue: approved.filter(r=>r.date>=weekStart && r.date<=today).reduce((s,r)=>s+ecRecordValue(r),0),
+    pendingCount: pending.length
+  };
+}
+
+function renderEmployerControl(){
+  const ec = ensureEmployerControl();
+  const today = new Date().toISOString().slice(0,10);
+  ['ecDailyDate','ecHydroDate','ecAssetDate','ecDelayDate'].forEach(id=>{ const el=document.getElementById(id); if(el && !el.value) el.value=today; });
+  const contractor = document.getElementById('ecContractor'); if(contractor && !contractor.value) contractor.value = state.project.contractor || '';
+  const pkg = document.getElementById('ecPackage'); if(pkg && !pkg.value) pkg.value = state.project.contractNo || '';
+  const statusOptions = '<option value="">All statuses</option>' + EC_STATUS_FLOW.map(s=>`<option>${s}</option>`).join('');
+  ['ecFilterStatus','ecApprovalStatus'].forEach(id=>{ const el=document.getElementById(id); if(el && !el.innerHTML) el.innerHTML = id==='ecApprovalStatus' ? EC_STATUS_FLOW.map(s=>`<option ${s==='Submitted'?'selected':''}>${s}</option>`).join('') : statusOptions; });
+  const fs = document.getElementById('ecFilterStructure'); if(fs){ const val=fs.value; fs.innerHTML=ecStructureOptions(val); fs.value=val; }
+  const ds = document.getElementById('ecDailyStructure'); if(ds){ const val=ds.value; ds.innerHTML=ecStructureOptions(val).replace('All structures','Select structure'); ds.value=val || state.structures[0]?.id || ''; ecPopulateItems('ecDailyStructure','ecDailyItem'); }
+  const hf = document.getElementById('ecHydroType'); if(hf && !hf.innerHTML){ hf.innerHTML=Object.entries(EC_HYDRO_FORMS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join(''); renderHydroFormFields(); }
+  const dt = document.getElementById('ecDelayType'); if(dt && !dt.innerHTML) dt.innerHTML=EC_DELAY_TYPES.map(x=>`<option>${x}</option>`).join('');
+
+  const sum = ecSummary();
+  const alerts = ecBuildAlerts(sum);
+  const kpis = document.getElementById('ecKpiHost');
+  if(kpis){
+    kpis.innerHTML = [
+      ['Overall Physical Progress', `${fmt2(sum.physicalPct)}%`, `${ccy()} ${fmt(sum.approvedValue)} approved value`, 'bi-speedometer2'],
+      ['Pending / Provisional', `${sum.pendingCount}`, `${fmt2(sum.pendingPct)}% pending value`, 'bi-hourglass-split'],
+      ['Today Progress', `${ccy()} ${fmt(sum.todayValue)}`, 'approved site production', 'bi-calendar-day'],
+      ['Weekly Progress', `${ccy()} ${fmt(sum.weekValue)}`, 'approved site production', 'bi-calendar-week'],
+      ['Critical Alerts', `${alerts.filter(a=>a.priority==='High').length}`, `${alerts.length} total active alerts`, 'bi-exclamation-triangle']
+    ].map(x=>`<div class="kpi"><div class="kpi-icon"><i class="bi ${x[3]}"></i></div><div class="kpi-label">${x[0]}</div><div class="kpi-value">${x[1]}</div><div class="kpi-sub">${x[2]}</div></div>`).join('');
+  }
+  renderEmployerApprovalQueue();
+  renderEmployerAlerts(alerts);
+  renderEmployerReport();
+}
+
+function renderHydroFormFields(){
+  const type = document.getElementById('ecHydroType')?.value || 'tunnel';
+  const meta = EC_HYDRO_FORMS[type] || EC_HYDRO_FORMS.tunnel;
+  const label = document.getElementById('ecHydroDetailLabel');
+  const txt = document.getElementById('ecHydroDetails');
+  if(label) label.textContent = `${meta.label} Details`;
+  if(txt && !txt.value) txt.placeholder = meta.detail;
+}
+
+function saveEmployerDailyProgress(){
+  const ec = ensureEmployerControl();
+  const rec = {
+    id:uid(), date:document.getElementById('ecDailyDate').value, project:state.project.name,
+    contractPackage:document.getElementById('ecPackage').value, contractor:document.getElementById('ecContractor').value,
+    structureId:document.getElementById('ecDailyStructure').value, itemId:document.getElementById('ecDailyItem').value,
+    todayQty:Number(document.getElementById('ecTodayQty').value)||0, location:document.getElementById('ecLocation').value,
+    chainage:document.getElementById('ecChainage').value, level:document.getElementById('ecLevel').value,
+    preparedBy:document.getElementById('ecPreparedBy').value, checkedBy:document.getElementById('ecCheckedBy').value,
+    approvalStatus:document.getElementById('ecApprovalStatus').value || 'Submitted', remarks:document.getElementById('ecRemarks').value,
+    ts:Date.now()
+  };
+  if(!rec.date || !rec.structureId || !rec.itemId || !rec.todayQty){ toast('Date, structure, activity and quantity are required','bad'); return; }
+  ec.dailyProgressRecords.push(rec);
+  ec.approvalWorkflowLogs.push({id:uid(), recordId:rec.id, status:rec.approvalStatus, by:rec.preparedBy||state.username||'User', when:new Date().toISOString(), note:'Daily progress submitted'});
+  ['ecTodayQty','ecLocation','ecChainage','ecLevel','ecRemarks'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  save(); renderEmployerControl(); toast('Employer daily progress saved','good');
+}
+
+function saveHydroSpecificRecord(){
+  const ec = ensureEmployerControl();
+  const type = document.getElementById('ecHydroType').value;
+  const rec = {id:uid(), date:document.getElementById('ecHydroDate').value, component:document.getElementById('ecHydroComponent').value, location:document.getElementById('ecHydroLocation').value, qty:Number(document.getElementById('ecHydroQty').value)||0, unit:document.getElementById('ecHydroUnit').value, details:document.getElementById('ecHydroDetails').value, approvalStatus:'Submitted', ts:Date.now()};
+  if(!rec.date || !rec.component){ toast('Date and component are required','bad'); return; }
+  const key = `${type}ProgressRecords`;
+  ec[key].push(rec);
+  save(); renderEmployerControl(); toast(`${EC_HYDRO_FORMS[type].label} saved`,'good');
+}
+
+function saveEmployerAssetRecord(){
+  const ec = ensureEmployerControl();
+  const type = document.getElementById('ecAssetType').value;
+  const rec = {id:uid(), date:document.getElementById('ecAssetDate').value, contractor:document.getElementById('ecAssetContractor').value, location:document.getElementById('ecAssetLocation').value, name:document.getElementById('ecAssetName').value, qty:Number(document.getElementById('ecAssetQty').value)||0, aux1:Number(document.getElementById('ecAssetAux1').value)||0, aux2:Number(document.getElementById('ecAssetAux2').value)||0, remarks:document.getElementById('ecAssetRemarks').value, ts:Date.now()};
+  const map = {manpower:'manpowerLogs', equipment:'equipmentLogs', material:'materialLogs', evidence:'photoEvidence'};
+  if(!rec.date || !rec.name){ toast('Date and name/category are required','bad'); return; }
+  ec[map[type]].push(rec);
+  save(); renderEmployerControl(); toast('Control-room record saved','good');
+}
+
+function saveEmployerDelayRecord(){
+  const ec = ensureEmployerControl();
+  const rec = {id:uid(), date:document.getElementById('ecDelayDate').value, type:document.getElementById('ecDelayType').value, activity:document.getElementById('ecDelayActivity').value, responsibleParty:document.getElementById('ecDelayParty').value, affectedDays:Number(document.getElementById('ecDelayDays').value)||0, targetResolutionDate:document.getElementById('ecDelayTarget').value, status:document.getElementById('ecDelayStatus').value, ipcClaimedQty:Number(document.getElementById('ecIpcClaimed').value)||0, verifiedSiteQty:Number(document.getElementById('ecIpcVerified').value)||0, remarks:document.getElementById('ecDelayRemarks').value, ts:Date.now()};
+  if(!rec.date || !rec.type){ toast('Date and delay type are required','bad'); return; }
+  ec.delayLogs.push(rec);
+  if(rec.ipcClaimedQty > rec.verifiedSiteQty){
+    ec.ipcProgressMapping.push({id:uid(), delayId:rec.id, claimedQty:rec.ipcClaimedQty, verifiedQty:rec.verifiedSiteQty, status:'Mismatch', createdAt:new Date().toISOString()});
+  }
+  save(); renderEmployerControl(); toast('Delay / IPC record saved','good');
+}
+
+function changeEmployerRecordStatus(id, nextStatus){
+  const ec = ensureEmployerControl();
+  const rec = ec.dailyProgressRecords.find(x=>x.id===id);
+  if(!rec) return;
+  const old = rec.approvalStatus || 'Draft';
+  if(old === 'Locked' && nextStatus !== 'Revision Requested'){ toast('Locked records require revision request','bad'); return; }
+  rec.approvalStatus = nextStatus;
+  ec.revisionHistory.push({id:uid(), recordId:id, field:'approvalStatus', oldValue:old, newValue:nextStatus, changedBy:state.username||state.role||'User', changeDate:new Date().toISOString(), reason:'Approval workflow update'});
+  ec.approvalWorkflowLogs.push({id:uid(), recordId:id, status:nextStatus, by:state.username||state.role||'User', when:new Date().toISOString()});
+  save(); renderEmployerControl();
+}
+
+function renderEmployerApprovalQueue(){
+  const host = document.getElementById('ecApprovalHost'); if(!host) return;
+  const ec = ensureEmployerControl();
+  const rows = ec.dailyProgressRecords.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,20);
+  if(!rows.length){ host.innerHTML = `<div class="empty"><i class="bi bi-check2-circle"></i><div class="empty-title">No employer-control approval records yet</div><div class="empty-sub">New daily site records will appear here.</div></div>`; return; }
+  host.innerHTML = rows.map(r=>{
+    const {s,item}=ecFindItem(r);
+    const idx = EC_STATUS_FLOW.indexOf(r.approvalStatus||'Draft');
+    const next = EC_STATUS_FLOW[Math.min(idx+1, EC_STATUS_FLOW.length-1)];
+    return `<div class="log-item"><div class="log-date">${escapeHtml(r.date||'')}</div><div><div class="log-title">${escapeHtml(s?.name||'Structure')} - ${escapeHtml(item?.activity||'Activity')}</div><div class="log-sub">${escapeHtml(r.contractor||'')} | ${fmt2(r.todayQty)} ${escapeHtml(item?.unit||'')} | ${escapeHtml(r.approvalStatus||'Draft')}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="btn btn-soft btn-sm" onclick="changeEmployerRecordStatus('${r.id}','${next}')">${escapeHtml(next)}</button><button class="btn btn-ghost btn-sm" onclick="changeEmployerRecordStatus('${r.id}','Revision Requested')">Revision</button></div></div>`;
+  }).join('');
+}
+
+function ecBuildAlerts(sum){
+  const ec = ensureEmployerControl();
+  const alerts = [];
+  if(sum.pendingCount) alerts.push({title:'Pending approvals', priority:'High', action:`Verify ${sum.pendingCount} submitted records before official reporting.`});
+  ec.delayLogs.filter(d=>d.status!=='Resolved' && d.status!=='Closed').slice(-10).forEach(d=>alerts.push({title:d.type, priority:d.affectedDays>3?'High':'Medium', action:d.remarks || d.activity || 'Resolve open delay'}));
+  ec.materialLogs.filter(m=>Number(m.aux2)>0 && Number(m.aux2)<Number(m.qty)*0.2).forEach(m=>alerts.push({title:`Low material stock: ${m.name}`, priority:'Medium', action:`Balance ${fmt2(m.aux2)} at ${m.location||'site'}`}));
+  ec.equipmentLogs.filter(e=>Number(e.aux2)>0).forEach(e=>alerts.push({title:`Equipment breakdown: ${e.name}`, priority:'Medium', action:`Breakdown ${fmt2(e.aux2)} hours`}));
+  ec.ipcProgressMapping.filter(x=>x.status==='Mismatch').forEach(x=>alerts.push({title:'IPC mismatch', priority:'High', action:`Claimed ${fmt2(x.claimedQty)} exceeds verified ${fmt2(x.verifiedQty)}`}));
+  ec.dashboardAlerts = alerts;
+  return alerts;
+}
+
+function renderEmployerAlerts(alerts){
+  const host = document.getElementById('ecAlertHost'); if(!host) return;
+  if(!alerts.length){ host.innerHTML = `<div class="empty"><i class="bi bi-shield-check"></i><div class="empty-title">No active control alerts</div><div class="empty-sub">Alerts will appear for pending approvals, IPC mismatch, low stock and delays.</div></div>`; return; }
+  host.innerHTML = alerts.map(a=>`<div class="log-item"><div class="log-date">${escapeHtml(a.priority)}</div><div><div class="log-title">${escapeHtml(a.title)}</div><div class="log-sub">${escapeHtml(a.action)}</div></div></div>`).join('');
+}
+
+function renderEmployerReport(){
+  const host = document.getElementById('ecReportHost'); if(!host) return;
+  const type = document.getElementById('ecReportType')?.value || 'daily';
+  const rows = ecFilteredProgressRecords();
+  const approved = rows.filter(ecIsApproved);
+  const pending = rows.filter(r=>!ecIsApproved(r));
+  const value = approved.reduce((s,r)=>s+ecRecordValue(r),0);
+  const ec = ensureEmployerControl();
+  const title = document.getElementById('ecReportType')?.selectedOptions?.[0]?.textContent || 'Employer Report';
+  const tableRows = rows.slice(0,40).map(r=>{ const f=ecFindItem(r); return `<tr><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(f.s?.name||'')}</td><td>${escapeHtml(f.item?.activity||'')}</td><td class="num">${fmt2(r.todayQty||0)} ${escapeHtml(f.item?.unit||'')}</td><td>${escapeHtml(r.approvalStatus||'')}</td><td>${escapeHtml(r.location||r.chainage||'')}</td></tr>`; }).join('');
+  const extra = type==='delay' ? ec.delayLogs.map(d=>`<tr><td>${escapeHtml(d.date||'')}</td><td>${escapeHtml(d.type||'')}</td><td>${escapeHtml(d.responsibleParty||'')}</td><td class="num">${fmt2(d.affectedDays||0)}</td><td>${escapeHtml(d.status||'')}</td><td>${escapeHtml(d.remarks||'')}</td></tr>`).join('') : '';
+  host.innerHTML = `
+    <div class="report-box">
+      <h2 style="margin:0 0 8px">${escapeHtml(title)}</h2>
+      <div class="report-meta">${escapeHtml(state.project.name||'Project')} | approved data used for official value; pending data shown separately</div>
+      <div class="kpi-grid" style="margin:14px 0">
+        <div class="kpi"><div class="kpi-label">Approved Records</div><div class="kpi-value">${approved.length}</div><div class="kpi-sub">${ccy()} ${fmt(value)}</div></div>
+        <div class="kpi"><div class="kpi-label">Pending Records</div><div class="kpi-value">${pending.length}</div><div class="kpi-sub">provisional only</div></div>
+        <div class="kpi"><div class="kpi-label">Photos / Evidence</div><div class="kpi-value">${ec.photoEvidence.length}</div><div class="kpi-sub">linked records</div></div>
+        <div class="kpi"><div class="kpi-label">Open Delays</div><div class="kpi-value">${ec.delayLogs.filter(d=>d.status!=='Resolved' && d.status!=='Closed').length}</div><div class="kpi-sub">decision required</div></div>
+      </div>
+      <table class="ms-table"><thead><tr><th>Date</th><th>Structure</th><th>Activity / BOQ</th><th class="num">Qty</th><th>Status</th><th>Location</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">No matching progress records.</td></tr>'}</tbody></table>
+      ${type==='delay'?`<h3 style="margin-top:18px">Delay / Decision Register</h3><table class="ms-table"><thead><tr><th>Date</th><th>Type</th><th>Party</th><th class="num">Days</th><th>Status</th><th>Action</th></tr></thead><tbody>${extra || '<tr><td colspan="6">No delay records.</td></tr>'}</tbody></table>`:''}
+    </div>`;
+}
+
+function exportEmployerControlCSV(){
+  const rows = ecFilteredProgressRecords();
+  const header = ['date','structure','activity','quantity','unit','contractor','status','location','chainage','level','remarks'];
+  const csv = [header.join(',')].concat(rows.map(r=>{
+    const {s,item}=ecFindItem(r);
+    return [r.date,s?.name,item?.activity,r.todayQty,item?.unit,r.contractor,r.approvalStatus,r.location,r.chainage,r.level,r.remarks].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',');
+  })).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `employer-control-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 /* ---- Period aggregations ---- */
@@ -10266,10 +10697,10 @@ function migrateLengthTracking(){
 function migrateProjectDatesVatOnce(){
   state.project = state.project || {};
   if(state.project.dateVatDefaults20260524) return;
-  state.project.startDate = '2024-08-15';
-  state.project.endDate = '2027-07-15';
-  state.project.revStartDate = '2024-08-15';
-  state.project.revEndDate = '2028-02-03';
+  state.project.startDate = state.project.startDate || '2024-08-15';
+  state.project.endDate = state.project.endDate || '2027-07-15';
+  state.project.revStartDate = state.project.revStartDate || state.project.startDate || '2024-08-15';
+  state.project.revEndDate = state.project.revEndDate || state.project.endDate || '2028-02-03';
   state.project.vatPct = Number(state.project.vatPct ?? 13) || 13;
   syncProjectCostsFromItems();
   state.project.dateVatDefaults20260524 = true;
@@ -10324,6 +10755,7 @@ window.addEventListener('hpmsDataUpdated', () => {
         data.weather = data.weather || [];
         data.infrastructure = data.infrastructure || [];
         data.infraFacilities = data.infraFacilities || null;
+        data.employerControl = data.employerControl || null;
         data.username = data.username || '';
         data.role = data.role || 'guest';
         data.heroCardOffset = data.heroCardOffset || {x:0,y:0};
@@ -10350,6 +10782,7 @@ window.addEventListener('hpmsDataUpdated', () => {
     if(id==='infrastructure') renderInfrastructure();
     if(id==='events') renderEvents();
     if(id==='dashboard') renderDashboard();
+    if(id==='employer') renderEmployerControl();
     if(id==='ipc') renderIPC();
   }
 });
