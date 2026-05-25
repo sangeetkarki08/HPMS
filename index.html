@@ -2105,6 +2105,17 @@ body.director-only .page:not(#page-dashboard){display:none !important;}
 
       <div class="kpi-grid" id="kpiHost"></div>
 
+      <div class="card" style="margin-bottom:18px" id="dashboardEmployerControlCard">
+        <div class="card-head">
+          <h3><i class="bi bi-building-check" style="margin-right:6px;color:var(--brand)"></i> Employer-Side Control Room</h3>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--text-3)">WBS-linked site data, approvals, evidence, alerts and IPC checks</span>
+            <button class="btn btn-soft btn-sm" onclick="goEmployerControlFromDashboard()"><i class="bi bi-box-arrow-up-right"></i> Open Module</button>
+          </div>
+        </div>
+        <div class="card-body" id="dashboardEmployerControlHost"></div>
+      </div>
+
       <!-- Project Milestones (from Scheduled tab) -->
       <div class="card" style="margin-bottom:18px" id="dashboardMilestonesCard">
         <div class="card-head">
@@ -4594,6 +4605,51 @@ function exportEmployerControlCSV(){
   a.download = `employer-control-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+function goEmployerControlFromDashboard(){
+  if(state.role === 'director'){
+    toast('Director view is dashboard-only. Switch role to Employer, Manager or Admin to enter the module.','warn');
+    return;
+  }
+  const btn = document.querySelector('.tab-btn[data-page="employer"]');
+  if(btn) btn.click();
+}
+
+function renderDashboardEmployerControl(){
+  const host = document.getElementById('dashboardEmployerControlHost');
+  if(!host) return;
+  const ec = ensureEmployerControl();
+  const sum = ecSummary();
+  const alerts = ecBuildAlerts(sum);
+  const hydroCount = ['tunnelProgressRecords','powerhouseProgressRecords','headworksProgressRecords','penstockProgressRecords']
+    .reduce((total,k)=>total+(ec[k]||[]).length,0);
+  const resourceCount = (ec.manpowerLogs||[]).length + (ec.equipmentLogs||[]).length + (ec.materialLogs||[]).length;
+  const openDelays = (ec.delayLogs||[]).filter(d=>d.status!=='Resolved' && d.status!=='Closed').length;
+  const mismatchCount = (ec.ipcProgressMapping||[]).filter(x=>x.status==='Mismatch').length;
+  const latest = ecOfficialProgressRecords().slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,5);
+  host.innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:14px">
+      <div class="kpi"><div class="kpi-icon"><i class="bi bi-diagram-3"></i></div><div class="kpi-label">WBS Daily Records</div><div class="kpi-value">${ecOfficialProgressRecords().length}</div><div class="kpi-sub">old logs mapped as approved data</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div><div class="kpi-label">Pending Approvals</div><div class="kpi-value">${sum.pendingCount}</div><div class="kpi-sub">shown separately from official progress</div></div>
+      <div class="kpi kpi-info"><div class="kpi-icon"><i class="bi bi-water"></i></div><div class="kpi-label">Hydropower Forms</div><div class="kpi-value">${hydroCount}</div><div class="kpi-sub">tunnel, powerhouse, headworks, penstock</div></div>
+      <div class="kpi kpi-good"><div class="kpi-icon"><i class="bi bi-people"></i></div><div class="kpi-label">Resources / Materials</div><div class="kpi-value">${resourceCount}</div><div class="kpi-sub">manpower, equipment, stock and consumption</div></div>
+      <div class="kpi kpi-accent"><div class="kpi-icon"><i class="bi bi-camera"></i></div><div class="kpi-label">Photo / Video Evidence</div><div class="kpi-value">${(ec.photoEvidence||[]).length}</div><div class="kpi-sub">linked with date, structure and activity</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-icon"><i class="bi bi-exclamation-triangle"></i></div><div class="kpi-label">Alerts / Delays / IPC</div><div class="kpi-value">${alerts.length}</div><div class="kpi-sub">${openDelays} open delays · ${mismatchCount} IPC mismatches</div></div>
+    </div>
+    <div class="g2">
+      <div>
+        <h4 style="margin:0 0 10px;font-size:12px;text-transform:uppercase;color:var(--text-2);letter-spacing:.05em">Latest WBS-Linked Site Records</h4>
+        ${latest.length ? latest.map(r=>{
+          const f = ecFindItem(r);
+          return `<div class="log-item"><div class="log-date">${escapeHtml(r.date||'')}</div><div><div class="log-title">${escapeHtml(f.s?.name||'Structure')} - ${escapeHtml(f.item?.activity||'Activity')}</div><div class="log-sub">${fmt2(r.todayQty||0)} ${escapeHtml(f.item?.unit||'')} | ${escapeHtml(r.approvalStatus||'Approved')} | ${escapeHtml(r.source||'Employer Control')}</div></div></div>`;
+        }).join('') : `<div class="empty"><i class="bi bi-journal-plus"></i><div class="empty-title">Employer module is ready</div><div class="empty-sub">Open the module to add WBS-linked daily progress, hydropower forms, materials, evidence, delays and IPC checks.</div></div>`}
+      </div>
+      <div>
+        <h4 style="margin:0 0 10px;font-size:12px;text-transform:uppercase;color:var(--text-2);letter-spacing:.05em">Immediate Attention</h4>
+        ${alerts.length ? alerts.slice(0,5).map(a=>`<div class="log-item"><div class="log-date">${escapeHtml(a.priority)}</div><div><div class="log-title">${escapeHtml(a.title)}</div><div class="log-sub">${escapeHtml(a.action)}</div></div></div>`).join('') : `<div class="empty"><i class="bi bi-shield-check"></i><div class="empty-title">No active employer-side alerts</div><div class="empty-sub">Alerts appear for pending approvals, low stock, unresolved delay and IPC mismatch.</div></div>`}
+      </div>
+    </div>`;
 }
 
 /* ---- Period aggregations ---- */
@@ -9637,6 +9693,7 @@ function renderDashboard(){
   renderTimeline();
   renderScheduleProgressDashboard();
   renderDashboardMilestones();
+  renderDashboardEmployerControl();
   const c = chartCols();
   syncProjectCostsFromItems();
   const totalAmt = projectAmountExVat();
