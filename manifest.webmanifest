@@ -1,13 +1,13 @@
 {
-  "name": "HPMS — Progress Tracking System",
+  "name": "HPMS — Progress Tracking",
   "short_name": "HPMS",
-  "description": "Construction Progress Monitoring System — works offline, syncs when online",
+  "description": "Simple hydropower project progress tracking system — works offline, syncs when online",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0a0e14",
-  "theme_color": "#f59e0b",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
   "icons": [
     { "src": "app/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]

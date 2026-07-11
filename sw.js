@@ -8,11 +8,10 @@
   to force clients to fetch fresh copies.
 */
 
-const CACHE_VERSION = 'hpms-v6';
+const CACHE_VERSION = 'hpms-v7';
 const APP_SHELL = [
   './',
   './index.html',
-  './cpms.html',
   './config.js',
   './app/cloud-sync.js',
   './app/icon.svg',
